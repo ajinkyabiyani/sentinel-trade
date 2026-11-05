@@ -1,0 +1,36 @@
+# Deny by default, so nothing new in this folder can reach GitHub by accident. Secrets live here too:
+# Credentials.txt, access_token.json and backend/.kite_session.json must never be committed.
+/*
+!/.gitignore
+!/README.md
+!/darvas_algo.py
+!/index_lists/
+!/kite-login/
+
+# Never, wherever they appear
+Credentials*
+credentials*
+access_token*
+*.env
+.env*
+*.pem
+*.key
+.kite_session*
+
+# Generated data and caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.orb_cache/
+.oi_cache/
+.darvas_cache/
+kite-login/reports/
+*.tmp
+*.log
+
+# Frontend build
+node_modules/
+dist/
+
+# Local tool settings
+kite-login/.claude/
