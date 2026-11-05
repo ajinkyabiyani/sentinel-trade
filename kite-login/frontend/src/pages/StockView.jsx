@@ -123,7 +123,7 @@ const Seg = ({ value, onChange, options }) => (
   </span>
 );
 
-export default function StockView({ symbol, exchange = "NSE", openTicket, darvas, orb, news, reloadAlerts, openStock }) {
+export default function StockView({ children, symbol, exchange = "NSE", darvas, orb, news, reloadAlerts, openStock }) {
   const [range, setRange] = useState("1Y");
   const [tf, setTf] = useState("D");
   const [kind, setKind] = useState("Candles");
@@ -166,9 +166,6 @@ export default function StockView({ symbol, exchange = "NSE", openTicket, darvas
   const rdef = RANGES.find((r) => r.id === range);
   const bars = tf === "W" || big ? Math.ceil(rdef.bars / 5) : rdef.bars;
   const notes = strategyNotes(symbol, darvas, orb);
-  const fut = exchange === "MCX" || exchange === "CDS";
-  const tradable = d?.tradable !== false;
-  const ticket = (s) => openTicket({ exchange, tradingsymbol: symbol, transaction_type: s, product: fut ? "NRML" : "CNC", order_type: "LIMIT", price: last, quantity: fut ? d?.lot_size : undefined });
   const words = [symbol, ...(d?.name || "").split(" ").filter((w) => w.length > 3).slice(0, 1)].map((w) => w.toLowerCase());
   const headlines = (news?.items || []).filter((n) => words.some((w) => n.title.toLowerCase().includes(w))).slice(0, 20);
   const industry = INDUSTRY_OF[symbol] || d?.industry;
@@ -206,41 +203,42 @@ export default function StockView({ symbol, exchange = "NSE", openTicket, darvas
               <button type="button" className="ghost" onClick={() => setAlertOpen((v) => !v)}>🔔 Alert</button>
               {alertOpen && <AlertForm symbol={symbol} exchange={exchange} last={last} onDone={(ok) => { setAlertOpen(false); if (ok) { setNote("Alert saved. Checked every 10 s while the backend runs; see News & Alerts."); reloadAlerts?.(); } }} />}
             </div>
-            {tradable && <button type="button" className="buy" onClick={() => ticket("BUY")} disabled={!d}>Buy</button>}
-            {tradable && <button type="button" className="sell" onClick={() => ticket("SELL")} disabled={!d}>Sell</button>}
           </div>
         </div>
       </header>
       {note && <p className="ok-note">{note}</p>}
 
-      <div className="si2-grid">
-        <section className="card si2-chart">
-          <div className="sc-tools">
-            <Seg value={tf} onChange={setTf} options={["D", "W"]} />
-            <Seg value={range} onChange={setRange} options={RANGES.map((r) => r.id)} />
-            <Seg value={kind} onChange={setKind} options={["Candles", "Bars", "Line"]} />
-            <button type="button" className={`sc-tog${log ? " on" : ""}`} onClick={() => setLog((v) => !v)} aria-pressed={log}>Log</button>
-            <span className="sc-inds">
-              {[["ema21", "EMA 21", "e21"], ["sma50", "SMA 50", "s50"], ["sma200", "SMA 200", "s200"]].map(([k, l, c]) => (
-                <button key={k} type="button" className={`sc-tog ${c}${ind[k] ? " on" : ""}`} aria-pressed={ind[k]} onClick={() => setInd((v) => ({ ...v, [k]: !v[k] }))}>{l}</button>
-              ))}
-            </span>
-          </div>
-          {shown ? <StockChart candles={shown} bench={bench} bars={bars} kind={kind === "Candles" ? "candle" : kind === "Bars" ? "bar" : "line"} log={log} ind={ind} hi52={ta?.hi52} />
-            : <div className="chart-empty" style={{ height: 540 }}>{q.loading || qMax.loading ? <Spinner /> : <ErrorNote error={q.error || qMax.error || "No data"} />}</div>}
-          {ta && (
-            <footer className="si2-strip">
-              <span>3M <b className={tone(ta.r3m)}>{signed(ta.r3m, 1)}%</b></span>
-              <span>6M <b className={tone(ta.r6m)}>{signed(ta.r6m, 1)}%</b></span>
-              <span>1Y <b className={tone(ta.r1y)}>{signed(ta.r1y, 1)}%</b></span>
-              <span>RS <b>{ta.rs ?? "–"}</b></span>
-              <span>RS 3M <b>{ta.rs3m ?? "–"}</b></span>
-              <span>Stage <b className={ta.stage[1]}>{ta.stage[0]}</b></span>
-              <span>Trend <b>{ta.score}/8</b></span>
-              <span className="muted">Avg traded value {num(ta.tv, 0)} cr/day</span>
-            </footer>
-          )}
-        </section>
+      <div className={`si2-grid${children ? "" : " solo"}`}>
+        <div className="si2-left">
+          <section className="card si2-chart">
+            <div className="sc-tools">
+              <Seg value={tf} onChange={setTf} options={["D", "W"]} />
+              <Seg value={range} onChange={setRange} options={RANGES.map((r) => r.id)} />
+              <Seg value={kind} onChange={setKind} options={["Candles", "Bars", "Line"]} />
+              <button type="button" className={`sc-tog${log ? " on" : ""}`} onClick={() => setLog((v) => !v)} aria-pressed={log}>Log</button>
+              <span className="sc-inds">
+                {[["ema21", "EMA 21", "e21"], ["sma50", "SMA 50", "s50"], ["sma200", "SMA 200", "s200"]].map(([k, l, c]) => (
+                  <button key={k} type="button" className={`sc-tog ${c}${ind[k] ? " on" : ""}`} aria-pressed={ind[k]} onClick={() => setInd((v) => ({ ...v, [k]: !v[k] }))}>{l}</button>
+                ))}
+              </span>
+            </div>
+            {shown ? <StockChart candles={shown} bench={bench} bars={bars} kind={kind === "Candles" ? "candle" : kind === "Bars" ? "bar" : "line"} log={log} ind={ind} hi52={ta?.hi52} />
+              : <div className="chart-empty" style={{ height: 540 }}>{q.loading || qMax.loading ? <Spinner /> : <ErrorNote error={q.error || qMax.error || "No data"} />}</div>}
+            {ta && (
+              <footer className="si2-strip">
+                <span>3M <b className={tone(ta.r3m)}>{signed(ta.r3m, 1)}%</b></span>
+                <span>6M <b className={tone(ta.r6m)}>{signed(ta.r6m, 1)}%</b></span>
+                <span>1Y <b className={tone(ta.r1y)}>{signed(ta.r1y, 1)}%</b></span>
+                <span>RS <b>{ta.rs ?? "–"}</b></span>
+                <span>RS 3M <b>{ta.rs3m ?? "–"}</b></span>
+                <span>Stage <b className={ta.stage[1]}>{ta.stage[0]}</b></span>
+                <span>Trend <b>{ta.score}/8</b></span>
+                <span className="muted">Avg traded value {num(ta.tv, 0)} cr/day</span>
+              </footer>
+            )}
+          </section>
+          {children}
+        </div>
 
         <aside className="card si2-side">
           <div className="cc-tabs" role="tablist">

@@ -8,7 +8,7 @@ A private trading terminal for Indian markets, built on Zerodha Kite Connect. It
 
 | Section | What it shows | Data |
 |---|---|---|
-| Home | Headline indices, breadth, market mood, sector performance, pre-open volume, FII/DII, market cap leaders, index performance, heatmap, top strategy calls | Kite, NSE |
+| Home | Headline indices, breadth, market mood, sector performance, pre-open volume, FII/DII, index performance, heatmap, top strategy calls | Kite, NSE |
 | Calendar | RBI policy, F&O expiries, holidays, FII/DII, results dates, dividends and corporate actions, IPOs | NSE, Kite |
 | Fundamental | Chart and technical read, key ratios, company profile, quarterly results, shareholding | Kite, Screener.in |
 | Heatmap | Nifty 500 by sector over 1D to 1Y, sector rotation, market regime | Kite, Screener.in (market cap) |

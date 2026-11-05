@@ -84,7 +84,7 @@ function StatStrip({ darvas, indices, movers, live, breadthTicks, mv, mvError, g
         <NavGlyph d="M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M10 10a4 4 0 100-8 4 4 0 000 8zM21 20v-2a4 4 0 00-3-3.9M16 2.1a4 4 0 010 7.8" />
         <span>
           <small>Breadth</small>
-          <b>{b ? <><span className="up">{b.up} advancing</span> <span className="muted">·</span> <span className="down">{b.down} declining</span></> : "–"}</b>
+          <b>{b ? <><span className="up">{b.up} adv</span> <span className="muted">·</span> <span className="down">{b.down} dec</span></> : "–"}</b>
           <em className="muted">{b ? `of ${b.total} index stocks · A/D ${b.down ? num(b.up / b.down, 2) : "–"}` : "needs a Kite session"}</em>
         </span>
       </div>
@@ -257,32 +257,9 @@ function Snapshot({ market, live, indices, flows }) {
   );
 }
 
-function MarketCaps({ rows, openStock }) {
-  // a ranking from part of the list would name the wrong leaders, so it waits for nearly all of them
-  const known = rows.filter((r) => r.mcap_cr);
-  const ready = rows.length > 0 && known.length >= rows.length * 0.9;
-  const top = ready ? [...known].sort((a, b) => b.mcap_cr - a.mcap_cr).slice(0, 7) : [];
-  return (
-    <section className="card tt-card">
-      <header className="card-head"><h3>Market cap leaders</h3><span className="muted small">₹ lakh crore</span></header>
-      <div className="tt-list-head"><span>Stock</span><span>Mkt cap</span><span>Price</span></div>
-      <ul className="tt-list">
-        {top.map((r) => (
-          <li key={r.symbol}>
-            <button type="button" onClick={() => openStock(r.symbol)}><b>{r.symbol}</b><small>{r.name}</small></button>
-            <span>{num(r.mcap_cr / 100000, 2)}</span>
-            <span key={r.last} className={tone(r.chg)}>{num(r.last)}</span>
-          </li>
-        ))}
-        {!ready && <li className="muted small">Ranking appears when market caps finish loading from Screener.in: {known.length} of {rows.length} so far.</li>}
-      </ul>
-    </section>
-  );
-}
-
 function Upcoming({ cal, go }) {
   const today = new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60_000).toISOString().slice(0, 10);
-  const events = (cal?.economic || []).filter((e) => e.date >= today && e.group !== "Flows").sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+  const events = (cal?.economic || []).filter((e) => e.date >= today && e.group !== "Flows").sort((a, b) => a.date.localeCompare(b.date)).slice(0, 7);
   const upcoming = (cal?.earnings || []).filter((e) => e.date >= today);
   const nextDay = upcoming.map((e) => e.date).sort()[0];
   const results = upcoming.filter((e) => e.date === nextDay);
@@ -331,8 +308,7 @@ export default function Home({ go, openStock, darvas, orb, news }) {
         <MoodGauge mood={mood.data} />
         <SectorBars sectors={idx.data?.sectors} ticks={sectorTicks.ticks} />
         <Snapshot market={market.data} live={snapshotLive} indices={idx.data} flows={flows.data} />
-        <MarketCaps rows={stocks.rows} openStock={openStock} />
-        <NormalizedChart />
+        <div className="tt-span2"><NormalizedChart /></div>
       </div>
       <div className="tt-grid2">
         <Upcoming cal={cal.data} go={go} />

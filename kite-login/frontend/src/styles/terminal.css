@@ -18,6 +18,7 @@
 .tt-headline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 1250px) { .tt-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tt-headline { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 800px) { .tt-grid3, .tt-grid2, .tt-headline { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 801px) { .tt-span2 { grid-column: span 2; } }
 
 .tt-list { list-style: none; margin: 0; padding: 0; }
 .tt-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 8px 2px; border-top: 1px solid var(--border); font-size: 0.86rem; }
@@ -103,16 +104,19 @@
 @media (max-width: 1100px) { .news-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* Fundamental */
-.fd-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px 16px; padding: 14px 18px; }
+.fd-kpis { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px 16px; padding: 14px 18px; }
+@media (max-width: 1100px) { .fd-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .fd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .fd-kpis > span { display: grid; gap: 2px; min-width: 0; }
 .fd-kpis small { color: var(--muted); font-size: 0.72rem; }
-.fd-kpis b { font-family: var(--font-num); font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-kpis b { font-family: var(--font-num); font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fd-kpis > em { grid-column: 1 / -1; font-style: normal; }
 .fd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 @media (max-width: 900px) { .fd-grid { grid-template-columns: minmax(0, 1fr); } }
 .fd-row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 0.85rem; }
 .fd-row:first-of-type { border-top: 0; }
 .fd-row span { color: var(--muted); }
-.fd-row b { font-family: var(--font-num); text-align: right; white-space: pre-wrap; }
+.fd-row b { font-family: var(--font-num); text-align: right; }
+.fd-row span { flex: none; }
 .fd-about { margin: 10px 0 0; font-size: 0.85rem; line-height: 1.55; color: var(--muted); }
 .fd-table th:first-child, .fd-table td:first-child { position: sticky; left: 0; background: var(--panel); }

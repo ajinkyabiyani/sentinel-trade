@@ -1,0 +1,75 @@
+/* Page-level layout, loaded last: every page fills the screen, cards in a row share a height, nothing leaves a dead gap. */
+
+/* The page fills the window between the top bar and the news ticker; wide screens use their width. */
+.content { display: flex; flex-direction: column; min-height: calc(100vh - 100px); }
+.shell .content, .side-shell .content { max-width: none; }
+.content > .page-head, .content > .page-foot { flex: none; }
+.content > :not(.page-head):not(.page-foot) { flex: 1 0 auto; }
+
+/* A short page (few rows, or nothing to show yet) grows its last card instead of ending mid-screen. */
+.content > .panel, .content > .stack { display: flex; flex-direction: column; }
+.content > .stack > :last-child { flex: 1 0 auto; }
+.content .panel > .empty, .content .panel > .table-wrap:only-child { flex: 1 0 auto; }
+.content .panel > .empty { display: grid; place-items: center; }
+
+/* Terminal pages stack their cards; the last one takes what is left. */
+.tt-page { display: flex; flex-direction: column; }
+.tt-page > * { flex: none; }
+.tt-page > .segmented { align-self: flex-start; }
+.tt-page > .tt-card:last-child { flex: 1 0 auto; }
+.tt-page > .tt-card .empty { flex: 1 0 auto; display: grid; place-items: center; }
+
+/* Cards in a row are one height, and their contents spread to fill it. */
+.tt-card { display: flex; flex-direction: column; }
+.tt-grid3, .tt-grid2, .fd-grid { align-items: stretch; }
+.tt-span2 { display: flex; min-width: 0; }
+.tt-span2 > .card { flex: 1; min-width: 0; }
+.tt-list { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.tt-bars { flex: 1; align-content: space-between; }
+.tt-mood-parts { margin-top: auto; }
+.tt-foot { margin-top: auto; padding-top: 10px; }
+.tt-card > .tt-lines { flex: 1; min-height: 0; }
+
+/* Fundamental: ratios and profile sit under the chart, level with the side panel, which stays in view. */
+.si2-left { display: grid; gap: 16px; min-width: 0; align-content: start; }
+.si2-side { position: sticky; top: 76px; max-height: calc(100vh - 100px); overflow: hidden auto; }
+.si2-grid.solo { align-items: stretch; }
+.si2-grid.solo .si2-side { position: static; max-height: none; contain: size; }
+.fd-owner { margin-top: auto; padding-top: 14px; display: grid; gap: 7px; font-size: 0.8rem; }
+.fd-owner > b { font-size: 0.82rem; }
+.fd-owner li { display: grid; grid-template-columns: 76px minmax(0, 1fr) 54px; gap: 8px; align-items: center; }
+.fd-owner ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.fd-owner em { font-style: normal; font-family: var(--font-num); text-align: right; }
+.fd-owner i { display: block; height: 7px; border-radius: 99px; background: var(--accent); }
+@media (max-width: 1200px) {
+  .si2-side, .si2-grid.solo .si2-side { position: static; max-height: none; contain: none; overflow: hidden; }
+}
+
+/* News: the headlines card matches the side column and scrolls inside itself. */
+.news-grid { align-items: stretch; flex: 1 0 auto !important; }
+.news-grid > .tt-card { contain: size; }
+.news-table { flex: 1; min-height: 0; max-height: none; }
+.news-table td:nth-child(3) { white-space: normal; min-width: 240px; }
+@media (max-width: 1100px) {
+  .news-grid > .tt-card { contain: none; }
+  .news-table { max-height: 70vh; }
+}
+@media (max-width: 700px) {
+  .news-table th:nth-child(2), .news-table td:nth-child(2), .news-table th:nth-child(4), .news-table td:nth-child(4) { display: none; }
+  .news-table td:nth-child(3) { min-width: 0; }
+}
+
+/* Portfolio: the strategy cards share the row however many desks there are; the risk panel fits the window. */
+.pf-strats { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.pd-risk { max-height: calc(100vh - 100px); overflow: hidden auto; }
+@media (max-width: 1150px) { .pd-risk { position: static; max-height: none; } }
+@media (max-width: 760px) { .pf-strats { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); } }
+
+/* Trade: the side column is as tall as the ticket and scrolls inside itself. */
+@media (min-width: 1101px) {
+  .trade-layout { align-items: stretch; }
+  .trade-layout > .stack { contain: size; overflow: hidden auto; align-content: start; }
+}
+
+/* Home: the headline numbers stay on one line. */
+.cc-stats b { font-size: 1.2rem; }
