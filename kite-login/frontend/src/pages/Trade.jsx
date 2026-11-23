@@ -4,6 +4,7 @@ import { inr, num, signed, tone } from "../lib/format.js";
 import { EQUITY, EXCHANGES, ORDER_TYPES, PRODUCTS, VALIDITIES, VARIETIES, orderTypesFor, productsFor } from "../lib/products.js";
 import { useTicks } from "../lib/ticks.js";
 import { ErrorNote, Modal, ProductBadge, Segmented, SideBadge, Spinner } from "../components/ui.jsx";
+import { WithLogo } from "../components/Logo.jsx";
 
 const BLANK = {
   exchange: "NSE",
@@ -97,7 +98,7 @@ function SymbolSearch({ exchange, value, onPick }) {
               onMouseDown={() => pick(h)}
               onMouseEnter={() => setActive(i)}
             >
-              <b>{h.tradingsymbol}</b>
+              <WithLogo symbol={h.tradingsymbol} size={20}><b>{h.tradingsymbol}</b></WithLogo>
               <span className="muted">{h.name}</span>
               <span className="chip">{h.instrument_type}</span>
               {h.expiry && <span className="muted">{h.expiry}</span>}
@@ -129,7 +130,7 @@ export default function Trade({ session, prefill, go }) {
   const [more, setMore] = useState(false);
   const set = (k, v) => setO((s) => ({ ...s, [k]: v }));
 
-  // Prefill from Darvas / positions / holdings.
+  // Prefill from positions / holdings.
   useEffect(() => {
     if (!prefill) return;
     const { _at, tradingsymbol, ...rest } = prefill;
@@ -279,7 +280,7 @@ export default function Trade({ session, prefill, go }) {
         {inst && (
           <div className="quote-strip">
             <div>
-              <b className="quote-sym">{inst.tradingsymbol}</b>
+              <WithLogo symbol={inst.tradingsymbol} size={28}><b className="quote-sym">{inst.tradingsymbol}</b></WithLogo>
               <span className="muted">
                 {inst.exchange}
                 {inst.name ? ` · ${inst.name}` : ""}
@@ -406,7 +407,7 @@ export default function Trade({ session, prefill, go }) {
             </label>
             <label className="field">
               <span>Tag</span>
-              <input maxLength={20} value={o.tag} onChange={(e) => set("tag", e.target.value)} placeholder="e.g. darvas" />
+              <input maxLength={20} value={o.tag} onChange={(e) => set("tag", e.target.value)} placeholder="e.g. swing" />
             </label>
           </div>
         )}

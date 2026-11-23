@@ -3,6 +3,7 @@ import { api } from "../lib/api.js";
 import { inr, num, signed, tone } from "../lib/format.js";
 import { useTicks } from "../lib/ticks.js";
 import { Badge, DataTable, ErrorNote, Spinner, Stat, useLoad } from "../components/ui.jsx";
+import { WithLogo } from "../components/Logo.jsx";
 
 export default function Holdings({ openTicket, openGtt }) {
   const h = useLoad(api.holdings, [], 60_000);
@@ -34,13 +35,13 @@ export default function Holdings({ openTicket, openGtt }) {
       key: "tradingsymbol",
       label: "Instrument",
       render: (r) => (
-        <span className="sym">
+        <WithLogo symbol={r.tradingsymbol}><span className="sym">
           <b>
             {r.tradingsymbol} {r.mtf_qty > 0 && <Badge tone="teal">MTF {r.mtf_qty}</Badge>}
             {r.t1_quantity > 0 && <Badge tone="amber">T1 {r.t1_quantity}</Badge>}
           </b>
           <small>{r.exchange}</small>
-        </span>
+        </span></WithLogo>
       ),
     },
     { key: "qty", label: "Qty", align: "num" },

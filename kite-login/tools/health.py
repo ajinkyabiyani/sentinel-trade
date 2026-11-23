@@ -14,8 +14,8 @@ from datetime import datetime
 from pathlib import Path
 
 BACKEND, FRONTEND = "http://127.0.0.1:8000", "http://127.0.0.1:5173"
-ENDPOINTS = ["/api/session", "/api/orb/state", "/api/momentum", "/api/improve",
-             "/api/darvas/results", "/api/portfolio", "/api/news?source=all&limit=20", "/api/market/indices"]
+ENDPOINTS = ["/api/session", "/api/momentum", "/api/portfolio", "/api/risk-settings", "/api/multi-agent-team",
+             "/api/multi-agent-team-2", "/api/news?source=all&limit=20", "/api/market/indices"]
 SLOW_MS = 1500
 
 
@@ -35,7 +35,6 @@ def engines() -> list[dict]:
     """Background loops report progress / error fields; surface stuck or failing ones."""
     out = []
     for name, path, pick in [
-        ("ORB", "/api/orb/state", lambda d: (d.get("error"), (d.get("snapshot") or {}).get("asof"))),
         ("Momentum sweep", "/api/momentum", lambda d: ((d.get("progress") or {}).get("error"), d.get("built"))),
     ]:
         code, _, body = get(BACKEND + path)

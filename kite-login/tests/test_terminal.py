@@ -151,3 +151,24 @@ def test_calendar_dates():
     assert calendar_data._iso("06-Nov-2026") == "2026-11-06"
     assert calendar_data._iso("06-NOV-2026") == "2026-11-06"
     assert calendar_data._iso("-") is None and calendar_data._iso(None) is None
+
+
+def test_a_build_made_before_kite_published_yesterday_is_rebuilt_once_kite_has_it(monkeypatch):
+    s = market.Store.__new__(market.Store)
+    s.progress, s._checked, s.built = {"running": False}, 0.0, "2026-11-12"
+    s.candles = {"NIFTY 50": [["2026-11-06", 1, 1, 1, 1, 0], ["2026-11-09", 1, 1, 1, 1, 0]]}
+    monkeypatch.setattr(s, "_indices", lambda instruments: {"NIFTY 50": 256265})
+    kite_has = [["2026-11-09", 1, 1, 1, 1, 0]]
+    asked = []
+    monkeypatch.setattr(market, "fetch_daily", lambda kite, token, today, days=0: asked.append((token, days)) or kite_has)
+    now = datetime(2026, 11, 12, 9, 0)
+    assert s.behind(None, None, now) is False and asked == [(256265, 10)]          # Kite has nothing newer yet
+    kite_has.append(["2026-11-11", 1, 1, 1, 1, 0])
+    assert s.behind(None, None, now) is False and len(asked) == 1                    # asked again only after 15 minutes
+    s._checked = 0.0
+    assert s.behind(None, None, now) is True                                          # 11 Nov is out now: rebuild
+    s.candles["NIFTY 50"].append(["2026-11-11", 1, 1, 1, 1, 0])
+    s._checked = 0.0
+    assert s.behind(None, None, now) is False
+    s.built, s._checked = "2026-11-11", 0.0
+    assert s.behind(None, None, now) is False and len(asked) == 3                     # not built today: due() covers it, no extra request

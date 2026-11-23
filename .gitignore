@@ -3,8 +3,6 @@
 /*
 !/.gitignore
 !/README.md
-!/darvas_algo.py
-!/index_lists/
 !/kite-login/
 
 # Never, wherever they appear
@@ -22,8 +20,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .orb_cache/
+kite-login/logs/
 .oi_cache/
-.darvas_cache/
 kite-login/reports/
 *.tmp
 *.log
@@ -34,3 +32,6 @@ dist/
 
 # Local tool settings
 kite-login/.claude/
+
+# Downloaded market history (research data, not code)
+market_data/

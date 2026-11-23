@@ -4,6 +4,7 @@ import { inr, num, signed, tone } from "../lib/format.js";
 import { convertTargets, productById } from "../lib/products.js";
 import { useTicks } from "../lib/ticks.js";
 import { DataTable, ErrorNote, Modal, ProductBadge, Segmented, Spinner, Stat, useLoad } from "../components/ui.jsx";
+import { WithLogo } from "../components/Logo.jsx";
 
 function ConvertDialog({ pos, kind, onClose, onDone }) {
   const targets = convertTargets(pos.exchange, pos.product);
@@ -92,7 +93,7 @@ export default function Positions({ openTicket, openGtt }) {
 
   const cols = [
     { key: "product", label: "Product", render: (p) => <ProductBadge product={p.product} /> },
-    { key: "tradingsymbol", label: "Instrument", render: (p) => <span className="sym"><b>{p.tradingsymbol}</b><small>{p.exchange}</small></span> },
+    { key: "tradingsymbol", label: "Instrument", render: (p) => <WithLogo symbol={p.tradingsymbol}><span className="sym"><b>{p.tradingsymbol}</b><small>{p.exchange}</small></span></WithLogo> },
     { key: "quantity", label: "Qty", align: "num", render: (p) => <span className={tone(p.quantity)}>{p.quantity}</span> },
     { key: "average_price", label: "Avg", align: "num", render: (p) => num(p.average_price) },
     { key: "last_price", label: "LTP", align: "num", render: (p) => num(p.last_price) },

@@ -1,0 +1,90 @@
+/* =====================================================================
+   IPO Agent charts. Tokens from design.css, both themes. good = up, warn = accent, bad = down.
+   ===================================================================== */
+.ic-ring { flex: none; }
+.ic-ring-bg { fill: none; stroke: var(--panel-2); stroke-width: 9; }
+.ic-ring-fg { fill: none; stroke: var(--muted); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray 0.6s ease; }
+.ic-ring.good .ic-ring-fg { stroke: var(--up); } .ic-ring.warn .ic-ring-fg { stroke: var(--accent); } .ic-ring.bad .ic-ring-fg { stroke: var(--down); }
+.ic-ring-v { font-size: 20px; font-weight: 800; fill: var(--text); font-family: var(--font-ui); }
+.ic-ring-l { font-size: 9.5px; font-weight: 600; fill: var(--muted); font-family: var(--font-ui); }
+.ipo-odds-viz { display: flex; align-items: center; gap: 12px; }
+
+/* listing-gain strip */
+.ic-strip { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.ic-strip-track { position: relative; height: 10px; border-radius: 5px; background: var(--panel-2); }
+.ic-strip-zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--border-2); }
+.ic-strip-band { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--down) 55%, transparent), color-mix(in srgb, var(--up) 60%, transparent)); }
+.ic-strip-med { position: absolute; top: -4px; width: 3px; height: 18px; border-radius: 2px; transform: translateX(-50%); background: var(--text); box-shadow: 0 0 0 2px var(--panel); }
+.ic-strip-labels { position: relative; height: 16px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ic-strip-labels span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.ic-strip-labels span:first-child { transform: none; }
+.ic-strip-labels span:last-child { transform: translateX(-100%); }
+.ic-strip-labels .med { font-size: 12px; }
+.ic-strip-key { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--faint); }
+
+/* columns by band */
+.ic-cols h4 { margin: 0 0 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.ic-cols-plot { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; align-items: end; padding-left: 26px; }
+.ic-grid { position: absolute; left: 26px; right: 0; height: 0; border-top: 1px dashed var(--border); margin-bottom: 54px; }
+.ic-grid em { position: absolute; left: -26px; top: -7px; font-style: normal; font-size: 10px; color: var(--faint); }
+.ic-col { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; position: relative; z-index: 1; }
+.ic-col > b { font-size: 12px; font-variant-numeric: tabular-nums; }
+.ic-col-bar { width: 70%; max-width: 46px; display: flex; align-items: flex-end; }
+.ic-col-bar span { width: 100%; height: 100%; border-radius: 4px 4px 0 0; background: var(--muted); }
+.ic-col-bar span.good { background: var(--up); } .ic-col-bar span.warn { background: var(--accent); } .ic-col-bar span.bad { background: var(--down); }
+.ic-col small { font-size: 10.5px; color: var(--text-2); text-align: center; line-height: 1.2; min-height: 26px; }
+.ic-col em { font-style: normal; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ic-col i { font-style: normal; font-size: 10px; color: var(--faint); }
+.ic-col em.up { color: var(--up); } .ic-col em.down { color: var(--down); }
+
+/* scatter */
+.ic-scatter { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ic-scatter-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.ic-scatter-head h4 { margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.ic-scatter svg { width: 100%; height: auto; display: block; }
+.ic-gridline { stroke: var(--border); stroke-width: 1; }
+.ic-axis0 { stroke: var(--border-2); stroke-width: 1.2; }
+.ic-diag { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 5 5; opacity: 0.7; }
+.ic-tick { font-size: 10px; fill: var(--faint); font-family: var(--font-ui); }
+.ic-axis-l { font-size: 10.5px; fill: var(--muted); font-family: var(--font-ui); font-weight: 600; }
+.ic-dot { fill: var(--muted); fill-opacity: 0.55; stroke: var(--panel); stroke-width: 0.8; transition: r 0.15s; cursor: default; }
+.ic-dot.up { fill: var(--up); } .ic-dot.down { fill: var(--down); }
+
+/* dumbbells */
+.ic-db { display: flex; flex-direction: column; }
+.ic-db-key { display: flex; gap: 14px; font-size: 11px; color: var(--muted); padding: 0 0 6px; }
+.ic-db-key i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.ic-db-key i.gmp { border: 2px solid var(--accent); }
+.ic-db-key i.act { background: var(--text-2); }
+.ic-db-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 58px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border); font-size: 12.5px; }
+.ic-db-name { display: flex; flex-direction: column; min-width: 0; }
+.ic-db-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ic-db-name small { font-size: 10.5px; color: var(--faint); }
+.ic-db-track { position: relative; height: 14px; }
+.ic-db-track::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; background: var(--panel-2); border-radius: 1px; }
+.ic-db-zero { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-2); }
+.ic-db-line { position: absolute; top: 6px; height: 2px; border-radius: 1px; }
+.ic-db-line.beat { background: color-mix(in srgb, var(--up) 60%, transparent); } .ic-db-line.miss { background: color-mix(in srgb, var(--down) 60%, transparent); }
+.ic-db-track i { position: absolute; top: 2px; width: 10px; height: 10px; border-radius: 50%; transform: translateX(-50%); }
+.ic-db-track i.gmp { border: 2px solid var(--accent); background: var(--panel); z-index: 1; }
+.ic-db-track i.act { background: var(--muted); z-index: 2; }
+.ic-db-track i.act.up { background: var(--up); } .ic-db-track i.act.down { background: var(--down); }
+.ic-db-row > b { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* financials */
+.ic-fin-key { display: flex; gap: 14px; align-items: center; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.ic-fin-key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.ic-fin-key i.rev, .ic-fin-bars .rev { background: color-mix(in srgb, var(--accent) 70%, var(--panel-2)); }
+.ic-fin-key i.pat, .ic-fin-bars .pat { background: var(--up); }
+.ic-fin-key em { margin-left: auto; font-style: normal; }
+.ic-fin-plot { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; align-items: end; padding-top: 16px; }
+.ic-fin-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.ic-fin-bars { display: flex; align-items: flex-end; gap: 4px; height: 110px; }
+.ic-fin-bars span { position: relative; width: 22px; border-radius: 3px 3px 0 0; }
+.ic-fin-bars .pat.neg { background: var(--down); }
+.ic-fin-bars em { position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ic-fin-col small { font-size: 10.5px; color: var(--text-2); }
+
+@media (max-width: 760px) { .ic-db-row { grid-template-columns: minmax(0, 1fr) 1fr 52px; } }
+:root[data-theme] .card-head > .ipo-tabs { display: inline-flex; flex-direction: row; }
+.ic-db-row > b { white-space: nowrap; }

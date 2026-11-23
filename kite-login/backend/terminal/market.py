@@ -23,6 +23,7 @@ log = logging.getLogger("kite-desk.terminal")
 
 CANDLE_DAYS = 400
 HIST_PACE = 0.34              # Kite allows 3 historical calls a second
+BEHIND_CHECK_S = 900          # how often a built day asks Kite whether a newer completed session has appeared
 CRAWL_PACE = 4.0              # seconds between Screener pages: one company at a time, slowly
 CRAWL_REFRESH_DAYS = 7
 SESSION_MINUTES = 375
@@ -33,6 +34,74 @@ SECTOR_INDICES = {"NIFTY BANK": "Banks", "NIFTY FIN SERVICE": "Financial Service
                   "NIFTY PHARMA": "Pharma", "NIFTY FMCG": "FMCG", "NIFTY METAL": "Metals", "NIFTY ENERGY": "Energy",
                   "NIFTY REALTY": "Realty", "NIFTY MEDIA": "Media", "NIFTY PSU BANK": "PSU Banks", "NIFTY INFRA": "Infrastructure"}
 MOOD_BANDS = ((25, "Extreme fear"), (45, "Fear"), (55, "Neutral"), (76, "Greed"), (101, "Extreme greed"))
+
+# Sector rotation by RSI: the sector indices above plus a few more, and NSE's thematic indices (Kite tradingsymbols).
+ROTATION_SECTORS = {**SECTOR_INDICES, "NIFTY PVT BANK": "Private Banks", "NIFTY HEALTHCARE": "Healthcare", "NIFTY OIL AND GAS": "Oil & Gas",
+                    "NIFTY CONSR DURBL": "Consumer Durables", "NIFTY CHEMICALS": "Chemicals"}
+THEME_INDICES = {"NIFTY IND DEFENCE": "Defence", "NIFTY RAILWAYS PSU": "Railways PSU", "NIFTY EV": "EV & new-age auto", "NIFTY CAPITAL MKT": "Capital markets",
+                 "NIFTY CPSE": "CPSE", "NIFTY PSE": "PSE", "NIFTY IND DIGITAL": "Digital", "NIFTY IND TOURISM": "Tourism", "NIFTY INDIA MFG": "Manufacturing",
+                 "NIFTY HOUSING": "Housing", "NIFTY CORE HOUSING": "Core housing", "NIFTY MOBILITY": "Mobility", "NIFTY CONSUMPTION": "Consumption",
+                 "NIFTY NEW CONSUMP": "New-age consumption", "NIFTY RURAL": "Rural", "NIFTY INFRALOG": "Infra & logistics", "NIFTY TRANS LOGIS": "Transport & logistics",
+                 "NIFTY INTERNET": "Internet", "NIFTY COMMODITIES": "Commodities", "NIFTY MNC": "MNC", "NIFTY IPO": "IPOs", "NIFTYCONGLOMERATE": "Conglomerates",
+                 "NIFTY SERV SECTOR": "Services", "NIFTY WAVES": "Media & entertainment (WAVES)"}
+ROTATION_LOOKBACK = 5         # sessions: RSI now against RSI this many sessions ago is the rotation's momentum
+ROTATION_TAIL = 6             # points of history drawn behind each dot
+
+
+def rsi_series(closes: list[float], n: int = 14) -> list[float | None]:
+    """Wilder's RSI after every close (None until there are n changes)."""
+    out: list[float | None] = [None] * len(closes)
+    if len(closes) <= n:
+        return out
+    deltas = [b - a for a, b in zip(closes, closes[1:])]
+    gain = sum(max(d, 0) for d in deltas[:n]) / n
+    loss = sum(max(-d, 0) for d in deltas[:n]) / n
+    out[n] = 100.0 if loss == 0 else 100 - 100 / (1 + gain / loss)
+    for i, d in enumerate(deltas[n:], start=n + 1):
+        gain = (gain * (n - 1) + max(d, 0)) / n
+        loss = (loss * (n - 1) + max(-d, 0)) / n
+        out[i] = 100.0 if loss == 0 else 100 - 100 / (1 + gain / loss)
+    return out
+
+
+def weekly_closes(rows: list[list]) -> list[float]:
+    """The last close of each ISO week, from [date, o, h, l, c, v] rows."""
+    weeks: dict[tuple, float] = {}
+    for r in rows:
+        y, w, _ = date.fromisoformat(r[0]).isocalendar()
+        weeks[(y, w)] = r[4]
+    return [weeks[k] for k in sorted(weeks)]
+
+
+def quadrant(rsi: float, change: float) -> str:
+    if rsi >= 50:
+        return "Leading" if change >= 0 else "Weakening"
+    return "Improving" if change >= 0 else "Lagging"
+
+
+def rotation_row(label: str, key: str, rows: list[list], last: float | None, today: str) -> dict | None:
+    """One index on the rotation map: daily RSI(14) with today's live price, its change over ROTATION_LOOKBACK sessions,
+    weekly RSI(14), 1-week and 1-month returns, the quadrant, and a short tail of (RSI, change) points. None without enough history."""
+    closes = [r[4] for r in rows if r[0] < today]
+    if last:
+        closes = closes + [last]
+    if len(closes) < 14 + ROTATION_LOOKBACK + ROTATION_TAIL + 1:
+        return None
+    rsi = rsi_series(closes)
+    tail = []
+    for i in range(len(closes) - ROTATION_TAIL, len(closes)):
+        now_, then = rsi[i], rsi[i - ROTATION_LOOKBACK]
+        if now_ is not None and then is not None:
+            tail.append([round(now_, 1), round(now_ - then, 1)])
+    if not tail:
+        return None
+    r_now, d_now = tail[-1]
+    wk = rsi_series(weekly_closes([r for r in rows if r[0] < today] + ([[today, 0, 0, 0, last, 0]] if last else [])))
+    week_rsi = next((x for x in reversed(wk) if x is not None), None)
+    ret = lambda k: round((closes[-1] / closes[-1 - k] - 1) * 100, 2) if len(closes) > k else None  # noqa: E731
+    zone = "Overbought" if r_now >= 70 else "Oversold" if r_now <= 30 else None
+    return {"label": label, "key": key, "last": round(closes[-1], 2), "rsi": r_now, "rsi_change": d_now, "rsi_week": None if week_rsi is None else round(week_rsi, 1),
+            "ret_1w": ret(5), "ret_1m": ret(21), "quadrant": quadrant(r_now, d_now), "zone": zone, "tail": tail}
 
 
 def wilder_rsi_state(closes: list[float], n: int = 14) -> tuple[float, float] | None:
@@ -194,6 +263,7 @@ class Store:
         self.caps: dict[str, dict] = {}
         self.built: str | None = None
         self.progress = {"running": False, "done": 0, "total": 0, "error": ""}
+        self._checked = 0.0
         self.crawl = {"running": False, "done": 0, "total": 0, "paused": ""}
         self._load()
 
@@ -230,8 +300,28 @@ class Store:
     def due(self, now: datetime) -> bool:
         return self.built != now.date().isoformat() and not self.progress["running"]
 
+    def last_session(self) -> str | None:
+        rows = self.candles.get("NIFTY 50") or []
+        return rows[-1][0] if rows else None
+
+    def behind(self, kite, instruments, now: datetime) -> bool:
+        """True when today's build is missing a completed session Kite now has. A build just after midnight can run before Kite
+        publishes the previous day's candle, and would otherwise keep it out until the next day. One small request, every 15 minutes."""
+        if self.built != now.date().isoformat() or self.progress["running"] or time.time() - self._checked < BEHIND_CHECK_S:
+            return False
+        self._checked = time.time()
+        token = self._indices(instruments).get("NIFTY 50")
+        if not token:
+            return False
+        rows = fetch_daily(kite, token, now.date(), days=10)
+        newest = rows[-1][0] if rows else None
+        if newest and newest > (self.last_session() or ""):
+            log.info("terminal candles end %s but Kite has %s: rebuilding", self.last_session(), newest)
+            return True
+        return False
+
     def _indices(self, instruments) -> dict[str, int]:
-        wanted = {**{k: v for k, v in HEADLINE_INDICES.items()}, **{k: "NSE" for k in SECTOR_INDICES}, "INDIA VIX": "NSE"}
+        wanted = {**{k: v for k, v in HEADLINE_INDICES.items()}, **{k: "NSE" for k in {**ROTATION_SECTORS, **THEME_INDICES}}, "INDIA VIX": "NSE"}
         tokens = {}
         for exch in ("NSE", "BSE"):
             for r in instruments(exch):

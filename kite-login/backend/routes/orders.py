@@ -160,7 +160,7 @@ def holdings(kite: KiteConnect = Depends(kite_client)):
 
 # ---------------------------------------------------------------------------
 # GTT (good-till-triggered): stops and targets that survive overnight. A normal SL order is a DAY order and is
-# cancelled at the close, so a swing position needs GTTs. Same structure as darvas_algo.exit_gtts / setup_gtt.
+# cancelled at the close, so a swing position needs GTTs.
 # ---------------------------------------------------------------------------
 _NSE_SLABS = ((250.0, 0.01, True), (1000.0, 0.05, False), (5000.0, 0.10, False), (10000.0, 0.50, False),
               (20000.0, 1.00, False))
@@ -261,7 +261,7 @@ def gtt_protect(body: ProtectBody, kite: KiteConnect = Depends(kite_client)):
 
 @app.post("/api/gtt/buy-stop")
 def gtt_buy_stop(body: BuyStopBody, kite: KiteConnect = Depends(kite_client)):
-    """Darvas entry that waits at the trigger: a single-leg GTT that buys (LIMIT a little above) when price trades
+    """An entry that waits at the trigger: a single-leg GTT that buys (LIMIT a little above) when price trades
     at or above the trigger, on whichever day that happens (GTTs last up to a year)."""
     ex, sym = body.exchange, body.tradingsymbol.upper()
     ltp = _ltp(kite, ex, sym)

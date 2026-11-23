@@ -1,0 +1,74 @@
+/* =====================================================================
+   Final polish, loaded last: one legibility floor for small labels across the app, equal-height cards wherever two sit side by
+   side, and single-line labels that truncate instead of running into their neighbours.
+   ===================================================================== */
+
+/* legibility: nothing that carries meaning is set below 10.5px */
+:root[data-theme] .badge, :root[data-theme] .eyebrow, :root[data-theme] .live-chip, :root[data-theme] .live-tag,
+:root[data-theme] .lt-badge, :root[data-theme] .lt-act, :root[data-theme] .count-chip, :root[data-theme] .news-new,
+:root[data-theme] .es-dh, :root[data-theme] .hx-regime, :root[data-theme] .tag, :root[data-theme] .nw-lane-tags em,
+:root[data-theme] .nw-kicker, :root[data-theme] .er-lo, :root[data-theme] .er-hi, :root[data-theme] .er-in,
+:root[data-theme] .er-now-label, :root[data-theme] .dir, :root[data-theme] .rot-li-name em, :root[data-theme] .cal-group-k,
+:root[data-theme] .cal-today { font-size: 10.5px; }
+:root[data-theme] small { font-size: max(10.5px, 0.82em); }
+:root[data-theme] .si2-side dt, :root[data-theme] .kpi dt { font-size: 10.5px; }
+
+/* single-line labels: truncation only works on block boxes */
+.hx-ipos button > span:first-child small, .cal-next-card small, .hx-events li > span:last-child small { display: block; max-width: 100%; }
+
+/* Home: the countdown tiles' number and unit no longer touch */
+.hx-when { height: 46px; line-height: 1.15; gap: 1px; }
+
+/* side-by-side cards share one bottom edge */
+.hx-pair { align-items: stretch; }
+.hx-pair > .card { display: flex; flex-direction: column; }
+.cal-main { align-items: stretch; }
+.cal-rail > .cal-src { flex: 1; }
+.ipo-two { align-items: stretch; }
+.ipo-two > .card { display: flex; flex-direction: column; }
+.ipo-two .ipo-listed { flex: 1; }
+
+/* News and Option Chain small labels */
+:root[data-theme] .nw-tick, :root[data-theme] .nw-tick b, :root[data-theme] .nw-tick span, :root[data-theme] .nw-rank-c,
+:root[data-theme] .nw-lane-tags time { font-size: 10.5px; }
+:root[data-theme] .bu { font-size: 10px; }
+:root[data-theme] .oc-wrap small, :root[data-theme] .chain small { font-size: 10.5px; }
+.hx-when { overflow: hidden; min-width: 0; }
+.hx-when b.word { font-size: 12.5px; text-transform: none; }
+
+/* News: a long outlet name ends in "…" instead of running over its bar */
+:root[data-theme] .nw-outlets button > span:first-child { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+
+/* Expiry Range: a band too narrow for both end labels shows them just outside its ends */
+.er-band { container-type: inline-size; }
+@container (max-width: 120px) {
+  .er-band .er-lo { left: auto; right: calc(100% + 6px); }
+  .er-band .er-hi { right: auto; left: calc(100% + 6px); }
+}
+
+/* Sector Rotation: phase descriptions wrap inside their card */
+.rot-phase-card small, .rot-phase-card .rot-phase-names { white-space: normal; }
+
+/* Event Screener rows: the move label stays inside its column */
+.es-row-num small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+
+/* Fundamentals: period labels stay readable on strongly coloured return cells */
+.fx-heat small { color: color-mix(in srgb, var(--text) 72%, transparent); }
+
+/* remaining small labels found by the sweep */
+:root[data-theme] .nw-group-head span, :root[data-theme] .nw-group-head em, :root[data-theme] .gauge-labels span,
+:root[data-theme] .sr-head span, :root[data-theme] .lt-node em, :root[data-theme] .er-facts em, :root[data-theme] .si2-kpis dt,
+:root[data-theme] .tp-tiles em { font-size: 10.5px; }
+:root[data-theme] .bs button, :root[data-theme] .spot-row span { font-size: 10.5px; }
+
+/* Fundamentals ownership: names truncate before they reach the figures; the trend line narrows on smaller screens */
+.fx-h-name { min-width: 0; overflow: hidden; }
+.fx-h-name { white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 1400px) { .fx-holders li { grid-template-columns: minmax(0, 1fr) 58px 56px 46px 46px; gap: 8px; } .fx-spark { width: 56px; } }
+
+/* trend template ticks a shade stronger */
+.tp-tt li.ok i { color: color-mix(in srgb, var(--up) 78%, var(--text)); }
+
+/* any text inside a button-shaped card wraps (the global button rule sets no-wrap for plain buttons) */
+.es-step small, .es-step span, .cal-next-card small, .ipo-sum-card span, .hx-pulse small { white-space: normal; }
+.cal-next-card small { white-space: nowrap; }

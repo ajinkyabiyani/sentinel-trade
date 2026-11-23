@@ -4,36 +4,18 @@ import { dateTime, num, signed, tone, REGIME_TONE } from "../lib/format.js";
 import { ago } from "../components/news.jsx";
 import { StockChart, sma, emaS, weekly } from "../components/stockchart.jsx";
 import { useTicks } from "../lib/ticks.js";
-import { Badge, DataTable, Empty, ErrorNote, Spinner, useLoad } from "../components/ui.jsx";
+import { DataTable, Empty, ErrorNote, Spinner, useLoad } from "../components/ui.jsx";
 import { useWatchlist } from "../components/watchlist.jsx";
 import { INDUSTRY_OF, THEMES_OF } from "../lib/classify.js";
 import { Logo } from "./Insight.jsx";
 import { RegimeCard } from "./Regime.jsx";
+import { WithLogo } from "../components/Logo.jsx";
 
 // Stock Intelligence: price / RVOL / RS-line chart; RS rating, momentum rank, Weinstein stage, Minervini trend
-// template, returns and range; peers and headlines. Everything from Kite daily candles and the daily scan.
+// template, returns and range; peers and headlines. Everything from Kite daily candles.
 const RANGES = [{ id: "3M", bars: 63 }, { id: "6M", bars: 126 }, { id: "1Y", bars: 252 }, { id: "2Y", bars: 520 }, { id: "Max", bars: 9999 }];
 const vol = (v) => (v == null ? "–" : v >= 1e7 ? `${(v / 1e7).toFixed(2)} Cr` : v >= 1e5 ? `${(v / 1e5).toFixed(2)} L` : v.toLocaleString("en-IN"));
-const pctl = (arr, v) => {
-  const a = arr.filter((x) => Number.isFinite(x));
-  if (!a.length || !Number.isFinite(v)) return null;
-  return Math.max(1, Math.min(99, Math.round((a.filter((x) => x < v).length / a.length) * 99)));
-};
-
-function strategyNotes(symbol, darvas, orb) {
-  const notes = [];
-  const t = orb?.trades?.find((r) => r.symbol === symbol);
-  if (t) notes.push({ tag: "ORB", tone: "accent", text: `Paper bought ${t.qty} at ${num(t.entry_ref)} · stop ${num(t.sl)} · ${t.status}` });
-  const s = orb?.shortlist?.find((r) => r.symbol === symbol);
-  if (s && !t) notes.push({ tag: "ORB", tone: "accent", text: `On today's shortlist: range high ${num(s.or_high)}, RVOL ${num(s.rvol, 1)}` });
-  const rd = darvas?.ready?.find((r) => r.symbol === symbol);
-  if (rd) notes.push({ tag: "Darvas", tone: "buy", text: `Buy-ready: trigger ${num(rd.trigger)} (${num(rd.distance_pct)}% away) · stop ${num(rd.stop)}` });
-  const b = darvas?.breakouts?.find((r) => r.symbol === symbol);
-  if (b) notes.push({ tag: "Darvas", tone: b.signal === "BUY" ? "buy" : "sell", text: `${b.signal} breakout ${b.breakout_date} · box ${num(b.box_bottom)}–${num(b.box_top)}` });
-  return notes;
-}
-
-function analyse(c, bench, last, row, universe) {
+function analyse(c, bench, last) {
   if (!c || c.length < 60) return null;
   const closes = c.map((x) => x[4]);
   const px = last ?? closes.at(-1);
@@ -47,7 +29,6 @@ function analyse(c, bench, last, row, universe) {
   const ret = (n) => (closes.length > n ? (px / closes[closes.length - 1 - n] - 1) * 100 : null);
   const bc = (bench || []).map((x) => x[4]);
   const bret = (n) => (bc.length > n ? (bc.at(-1) / bc[bc.length - 1 - n] - 1) * 100 : null);
-  const rs = row?.rs_rating ?? null;
   const tt = [
     [at(s150) && at(s200) && px > at(s150) && px > at(s200), "Price > 150 & 200 DMA"],
     [at(s150) && at(s200) && at(s150) > at(s200), "150 DMA > 200 DMA"],
@@ -56,7 +37,6 @@ function analyse(c, bench, last, row, universe) {
     [at(s50) && px > at(s50), "Price > 50 DMA"],
     [px >= lo52 * 1.3, "≥ 30% above 52w low"],
     [px >= hi52 * 0.75, "Within 25% of 52w high"],
-    [rs != null && rs >= 70, "RS rating ≥ 70"],
   ].map(([ok, label]) => [Boolean(ok), label]);
   const slope = at(s150) && at(s150, 20) ? at(s150) / at(s150, 20) - 1 : 0;
   const stage = !at(s150) ? ["–", ""] : px > at(s150) && slope > 0.005 ? ["2 · Advancing", "up"] : px < at(s150) && slope < -0.005 ? ["4 · Declining", "down"]
@@ -65,14 +45,8 @@ function analyse(c, bench, last, row, universe) {
   const adr = last20.reduce((a, x) => a + (x[2] / x[3] - 1), 0) / Math.max(1, last20.length) * 100;
   const v50 = c.slice(-51, -1).reduce((a, x) => a + x[5], 0) / 50;
   const tv = last20.reduce((a, x) => a + x[4] * x[5], 0) / Math.max(1, last20.length) / 1e7;
-  const ranked = [...universe].filter((s) => s.rs_rating != null).sort((a, b) => b.rs_rating - a.rs_rating);
-  const rank = row ? ranked.findIndex((s) => s.symbol === row.symbol) + 1 : null;
   return {
-    px, hi52, lo52, tt, score: tt.filter(([ok]) => ok).length, stage, rs, rsPrev: row?.prev_rs_rating ?? null,
-    rank: rank || null, of: ranked.length,
-    rs1m: pctl(universe.map((s) => s.chg_1m), row?.chg_1m ?? ret(21)),
-    rs3m: pctl(universe.map((s) => s.chg_3m), row?.chg_3m ?? ret(63)),
-    rs6m: pctl(universe.map((s) => s.chg_6m), row?.chg_6m ?? ret(126)),
+    px, hi52, lo52, tt, score: tt.filter(([ok]) => ok).length, stage,
     vsN3m: ret(63) != null && bret(63) != null ? ret(63) - bret(63) : null,
     r1w: ret(5), r1m: ret(21), r3m: ret(63), r6m: ret(126), r1y: ret(250),
     from50: at(s50) ? (px / at(s50) - 1) * 100 : null, fromHi: (px / hi52 - 1) * 100,
@@ -123,7 +97,7 @@ const Seg = ({ value, onChange, options }) => (
   </span>
 );
 
-export default function StockView({ children, symbol, exchange = "NSE", darvas, orb, news, reloadAlerts, openStock }) {
+export default function StockView({ children, symbol, exchange = "NSE", news, reloadAlerts, openStock, kpis }) {
   const [range, setRange] = useState("1Y");
   const [tf, setTf] = useState("D");
   const [kind, setKind] = useState("Candles");
@@ -146,8 +120,6 @@ export default function StockView({ children, symbol, exchange = "NSE", darvas, 
   const last = t?.last_price ?? d?.last;
   const chg = t?.change ?? d?.change;
   const pc = t?.change_pct ?? d?.change_pct;
-  const universe = darvas?.leadership?.stocks || [];
-  const row = universe.find((s) => s.symbol === symbol);
   // the daily series ends with today's candle moved by the live tick
   const series = useMemo(() => {
     if (!d?.candles?.length) return null;
@@ -160,12 +132,11 @@ export default function StockView({ children, symbol, exchange = "NSE", darvas, 
     }
     return c;
   }, [d, t]);
-  const ta = useMemo(() => analyse(series, bq.data?.candles, last, row, universe), [series, bq.data, last, row, universe]);
+  const ta = useMemo(() => analyse(series, bq.data?.candles, last), [series, bq.data, last]);
   const shown = big ? qMax.data?.candles : tf === "W" ? weekly(series || []) : series;
   const bench = big ? bMax.data?.candles : tf === "W" ? weekly(bq.data?.candles || []) : bq.data?.candles;
   const rdef = RANGES.find((r) => r.id === range);
   const bars = tf === "W" || big ? Math.ceil(rdef.bars / 5) : rdef.bars;
-  const notes = strategyNotes(symbol, darvas, orb);
   const words = [symbol, ...(d?.name || "").split(" ").filter((w) => w.length > 3).slice(0, 1)].map((w) => w.toLowerCase());
   const headlines = (news?.items || []).filter((n) => words.some((w) => n.title.toLowerCase().includes(w))).slice(0, 20);
   const industry = INDUSTRY_OF[symbol] || d?.industry;
@@ -192,6 +163,11 @@ export default function StockView({ children, symbol, exchange = "NSE", darvas, 
             </div>
           </div>
         </div>
+        {kpis && (
+          <dl className="si2-kpis" aria-label="Key numbers">
+            {kpis === "loading" ? <Spinner small /> : kpis.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+          </dl>
+        )}
         <div className="si2-price">
           <div>
             <b key={last} className={t ? (t.change >= 0 ? "flash-up" : "flash-down") : ""}>{num(last)}</b>
@@ -250,29 +226,17 @@ export default function StockView({ children, symbol, exchange = "NSE", darvas, 
             <div className="tp">
               <RegimeCard r={q.data?.regime} title="Market regime" />
               <div className="tp-tiles">
-                <div><small>RS rating</small><b className={ta.rs >= 70 ? "up" : ta.rs <= 30 ? "down" : ""}>{ta.rs ?? "–"}</b>
-                  <em>{ta.rs != null && ta.rsPrev != null ? `${signed(ta.rs - ta.rsPrev, 0)} vs a week ago` : "from the daily scan"}</em></div>
-                <div><small>Momentum rank</small><b>{ta.rank ? `#${ta.rank}` : "–"}</b><em>{ta.rank ? `of ${ta.of} scanned` : "not in the scan"}</em></div>
                 <div><small>Stage</small><b className={ta.stage[1]}>{ta.stage[0]}</b><em>Weinstein, 150-day trend</em></div>
                 <div><small>vs Nifty 50 · 3M</small><b className={tone(ta.vsN3m)}>{ta.vsN3m == null ? "–" : `${signed(ta.vsN3m, 1)}%`}</b><em>return difference</em></div>
               </div>
-              <h4>RS by timeframe <small className="muted">percentile in the scanned universe</small></h4>
-              <div className="tp-row3">
-                <span><small>1 month</small><b>{ta.rs1m ?? "–"}</b></span>
-                <span><small>3 months</small><b>{ta.rs3m ?? "–"}</b></span>
-                <span><small>6 months</small><b>{ta.rs6m ?? "–"}</b></span>
-              </div>
-              <h4>Trend template <small className="muted">({ta.score}/8)</small></h4>
+              <h4>Trend template <small className="muted">({ta.score}/{ta.tt.length})</small></h4>
               <ul className="tp-tt">
                 {ta.tt.map(([ok, l]) => <li key={l} className={ok ? "ok" : "no"}><i>{ok ? "✓" : "✗"}</i>{l}</li>)}
               </ul>
-              <h4>Setups today</h4>
-              {notes.length ? notes.map((n, i) => <p key={i} className="tp-note"><Badge tone={n.tone}>{n.tag}</Badge> {n.text}</p>) : <p className="muted small">None today</p>}
               <h4>Returns</h4>
               <div className="tp-row3">
                 <span><small>1 day</small><b className={tone(pc)}>{signed(pc)}%</b></span>
                 <span><small>1 week</small><b className={tone(ta.r1w)}>{signed(ta.r1w, 1)}%</b></span>
-                <span><small>1 month</small><b className={tone(ta.r1m)}>{signed(ta.r1m, 1)}%</b></span>
                 <span><small>From 50-day avg</small><b className={tone(ta.from50)}>{signed(ta.from50, 1)}%</b></span>
                 <span><small>From 52w high</small><b className={tone(ta.fromHi)}>{signed(ta.fromHi, 1)}%</b></span>
               </div>
@@ -288,10 +252,9 @@ export default function StockView({ children, symbol, exchange = "NSE", darvas, 
           {side === "peers" && (peers.loading && !peers.data ? <div className="chart-empty"><Spinner /></div> : peers.data?.peers?.length ? (
             <DataTable rowKey={(r) => r.symbol} rows={peers.data.peers} rowClass={(r) => (r.symbol === symbol ? "sel" : "")}
               columns={[
-                { key: "symbol", label: "Company", render: (r) => <button type="button" className="linkish strong" onClick={() => openStock?.(r.symbol)}>{r.symbol}</button> },
+                { key: "symbol", label: "Company", render: (r) => <button type="button" className="linkish strong" onClick={() => openStock?.(r.symbol)}><WithLogo symbol={r.symbol} size={20}>{r.symbol}</WithLogo></button> },
                 { key: "last", label: "Price", align: "num", render: (r) => num(r.last) },
                 { key: "change_pct", label: "Today", align: "num", render: (r) => <span className={tone(r.change_pct)}>{signed(r.change_pct)}%</span> },
-                { key: "rs", label: "RS", align: "num", sort: (r) => universe.find((s) => s.symbol === r.symbol)?.rs_rating, render: (r) => universe.find((s) => s.symbol === r.symbol)?.rs_rating ?? "–" },
               ]} />
           ) : <Empty>No same-industry peers in the tracked indices.</Empty>)}
           {side === "news" && (headlines.length ? (

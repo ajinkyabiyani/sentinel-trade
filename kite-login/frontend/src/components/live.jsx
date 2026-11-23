@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
-import { num, rupee, signed, tone } from "../lib/format.js";
+import { num, signed, tone } from "../lib/format.js";
 import { useTicks } from "../lib/ticks.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -54,10 +54,10 @@ export function MarketClock() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// ORB alerts: polls the engine on every tab and announces new signals, entries, exits and the daily stop with an
-// in-app toast, a short chime and (once you allow it) a desktop notification. Paper events only: nothing is ordered.
+// Alerts: your price and change alerts and paper stop / target hits, announced on every tab with an in-app toast,
+// a short chime and (once you allow it) a desktop notification. Nothing is ordered.
 // ---------------------------------------------------------------------------------------------------------------
-const PREF = "kd.orbAlerts";
+const PREF = "kd.orbAlerts";          // the stored on/off choice keeps its old name so it carries over
 const readPref = () => {
   try {
     return localStorage.getItem(PREF) !== "off";
@@ -86,77 +86,11 @@ function chime(up) {
   }
 }
 
-function events(prev, snap) {
-  const out = [];
-  const was = prev.trades;
-  for (const t of snap.trades) {
-    const k = t.symbol + t.entry_time;
-    if (!was.has(k)) {
-      out.push({ kind: "buy", title: `BUY ${t.symbol}`, body: `${t.qty} @ ${num(t.entry_ref)} · stop ${num(t.sl)}${t.target ? ` · target ${num(t.target)}` : ""}` });
-    }
-    if (t.status === "closed" && was.get(k) !== "closed") {
-      out.push({ kind: t.net >= 0 ? "win" : "loss", title: `EXIT ${t.symbol} · ${t.exit_reason}`, body: `${num(t.exit_ref)} at ${t.exit_time} · net ${rupee(t.net)}` });
-    }
-  }
-  for (const s of snap.signals) {
-    if (s.status === "pending" && !prev.signals.has(s.symbol + s.time)) {
-      out.push({ kind: "signal", title: `Signal ${s.symbol}`, body: `closed ${num(s.close)} above ${num(s.or_high)} on the ${s.time} candle · buys at the next open` });
-    }
-  }
-  const halt = snap.controller?.halt;
-  if (halt && !prev.halt) {
-    out.push({ kind: halt.state === "HALTED_PROFIT" ? "win" : "loss", title: halt.state === "HALTED_PROFIT" ? "Daily profit stop hit" : "Daily loss stop hit", body: `ORB stopped for the day at ${rupee(halt.pnl)}` });
-  }
-  return out;
-}
-
-const seen = (snap) => ({
-  session: snap.session,
-  trades: new Map(snap.trades.map((t) => [t.symbol + t.entry_time, t.status])),
-  signals: new Set(snap.signals.map((s) => s.symbol + s.time)),
-  halt: Boolean(snap.controller?.halt),
-});
-
-export function useOrbAlerts() {
-  const [snap, setSnap] = useState(null);
+export function useAlerts() {
   const [toasts, setToasts] = useState([]);
   const [enabled, setEnabledState] = useState(readPref);
-  const prev = useRef(null);
   const on = useRef(enabled);
   on.current = enabled;
-
-  useEffect(() => {
-    let alive = true;
-    let timer;
-    const poll = async () => {
-      try {
-        const r = await api.orbState();
-        const s = r.snapshot;
-        if (alive && s) {
-          setSnap(s);
-          // the first load, or a new session, only sets the baseline: alerts are for what happens while you watch
-          const ev = prev.current && prev.current.session === s.session ? events(prev.current, s) : [];
-          prev.current = seen(s);
-          if (ev.length && on.current) {
-            const at = Date.now();
-            setToasts((t) => [...ev.map((e, i) => ({ ...e, id: `${at}-${i}` })), ...t].slice(0, 5));
-            chime(ev.some((e) => e.kind === "buy" || e.kind === "win"));
-            if ("Notification" in window && Notification.permission === "granted") {
-              ev.forEach((e) => new Notification(e.title, { body: e.body, icon: "/favicon.svg", tag: e.title }));
-            }
-          }
-        }
-      } catch {
-        /* not logged in or backend restarting: try again on the next poll */
-      }
-      if (alive) timer = setTimeout(poll, 15_000);
-    };
-    poll();
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, []);
 
   useEffect(() => {
     if (!toasts.length) return undefined;
@@ -214,7 +148,14 @@ export function useOrbAlerts() {
   }, []);
 
   const dismiss = (id) => setToasts((t) => t.filter((x) => x.id !== id));
-  return { snap, toasts, dismiss, enabled, setEnabled, feed, reloadFeed: () => loadFeed.current?.() };
+  // priority news (a global event, or a stock alert on a watched stock): the same pop-up, chime and desktop notice as a fired alert
+  const push = (list) => {
+    if (!on.current || !list.length) return;
+    setToasts((t) => [...list.map((n) => ({ id: `nw-${n.id}`, kind: n.kind || "signal", title: n.title, body: n.body || "", go: "news" })), ...t].slice(0, 5));
+    chime(true);
+    if ("Notification" in window && Notification.permission === "granted") list.forEach((n) => new Notification(n.title, { body: n.body || "", icon: "/favicon.svg", tag: `nw-${n.id}` }));
+  };
+  return { toasts, dismiss, enabled, setEnabled, feed, reloadFeed: () => loadFeed.current?.(), push };
 }
 
 export function Toasts({ toasts, dismiss, onOpen }) {
@@ -232,19 +173,6 @@ export function Toasts({ toasts, dismiss, onOpen }) {
       ))}
     </div>
   );
-}
-
-// Day net for the ORB paper book with open trades marked to the live tick (backend net is after charges at its
-// last mark, so only the price move since then is added).
-export function liveNet(snap, ticks = {}) {
-  if (!snap) return null;
-  const c = snap.controller;
-  if (!snap.live || c.halt) return c.net;
-  return snap.trades.reduce((a, t) => {
-    if (t.status !== "open") return a;
-    const px = ticks[`NSE:${t.symbol}`]?.last_price;
-    return a + t.net + (px != null && t.ltp != null ? (px - t.ltp) * t.qty : 0);
-  }, c.realized);
 }
 
 // Ticker strip under the top bar: indices, India VIX, gold, silver and USD/INR on live ticks.

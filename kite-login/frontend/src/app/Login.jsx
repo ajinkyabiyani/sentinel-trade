@@ -220,14 +220,11 @@ export default function Login({ onLoggedIn, notice }) {
         <ThemeToggle className="square-btn login-theme" />
         <div className="hero-copy">
           <MarketClock />
-          <h1>Strategies, sector rotation, the option chain and your Kite account, on one screen.</h1>
+          <h1>Strategies, market data, the option chain and your Kite account, on one screen.</h1>
           <p>Log in once a day with your Kite Connect app. The access token is created and kept on this computer's backend; the browser never sees it.</p>
           <ul className="hero-points">
             <li>
               <b>Option chain</b> live OI, PCR and max pain, whether the chain leans bullish or bearish, and where support and resistance sit
-            </li>
-            <li>
-              <b>Rotation</b> which sectors, market caps and indices are leading, from a daily scan
             </li>
             <li>
               <b>Orders, GTTs, positions</b> every real order waits for your confirmation
@@ -269,8 +266,6 @@ export default function Login({ onLoggedIn, notice }) {
                 <dd className="chips">{(session.products || []).map((x) => <span key={x} className="chip">{x}</span>)}</dd>
                 <dt>Session expires</dt>
                 <dd>{dateTime(session.expires_at)} IST</dd>
-                <dt>Darvas scan</dt>
-                <dd>Refreshes after each market close, for the Rotation tab and the index trend</dd>
               </dl>
               <button type="button" className="primary block" onClick={() => onLoggedIn(session)}>
                 Open dashboard →

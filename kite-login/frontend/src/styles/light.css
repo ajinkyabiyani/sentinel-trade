@@ -16,7 +16,7 @@
   --border-2: rgba(15, 23, 42, 0.16);
   --accent: #0b8ea3;
   --accent-2: #0a7486;
-  --accent-soft: rgba(11, 142, 163, 0.12);
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --on-accent: #ffffff;
   --up: #0c9361;
   --down: #d32f4c;
@@ -36,14 +36,12 @@
   background: linear-gradient(180deg, #f4f7fb 0%, #eef2f7 100%);
   background-attachment: fixed;
 }
-:root[data-theme="light"] ::selection { background: rgba(11, 142, 163, 0.22); }
+:root[data-theme="light"] ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* surfaces: white cards on a soft grey page, hairline borders, soft shadows */
 :root[data-theme="light"] .card,
 :root[data-theme="light"] .panel,
-:root[data-theme="light"] .gc,
-:root[data-theme="light"] .idx-tile,
-:root[data-theme="light"] .sip-card {
+:root[data-theme="light"] .idx-tile {
   background: #ffffff;
   border-color: rgba(15, 23, 42, 0.09);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px rgba(15, 23, 42, 0.05);
@@ -51,7 +49,7 @@
 :root[data-theme="light"] .sidebar { background: #ffffff; border-right-color: rgba(15, 23, 42, 0.08); }
 :root[data-theme="light"] .side-shell .topbar,
 :root[data-theme="light"] .shell .topbar { background: rgba(255, 255, 255, 0.86); border-bottom-color: rgba(15, 23, 42, 0.08); }
-:root[data-theme="light"] .side-item.on { background: rgba(11, 142, 163, 0.1); }
+:root[data-theme="light"] .side-item.on { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 :root[data-theme="light"] .menu-pop,
 :root[data-theme="light"] .sym-hits,
 :root[data-theme="light"] .alert-pop,
@@ -79,12 +77,11 @@
 :root[data-theme="light"] .axis { fill: #5b6577; }
 :root[data-theme="light"] .last-pill { fill: var(--accent); }
 :root[data-theme="light"] .last-pill-text { fill: #ffffff; }
-:root[data-theme="light"] .g52-bar i,
-:root[data-theme="light"] .desk-meter i { background: #ffffff; }
+
 :root[data-theme="light"] .sc-52 { stroke: rgba(15, 23, 42, 0.35); }
 
 /* brand-coloured controls keep white text on the darker light-theme accents */
-:root[data-theme="light"] button.primary { background: linear-gradient(135deg, #0b8ea3, #087386); color: #ffffff; box-shadow: 0 6px 16px rgba(11, 142, 163, 0.25); }
+:root[data-theme="light"] button.primary { background: linear-gradient(135deg, var(--accent), #087386); color: #ffffff; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 25%, transparent); }
 :root[data-theme="light"] .cta { box-shadow: 0 6px 16px rgba(168, 118, 0, 0.22); }
 :root[data-theme="light"] button.buy { background: var(--up); color: #ffffff; }
 :root[data-theme="light"] button.sell { background: var(--down); color: #ffffff; }
@@ -93,7 +90,7 @@
 .theme-tog svg { transition: transform 0.3s; }
 .theme-tog:hover svg { transform: rotate(20deg); }
 :root[data-theme="light"] .modal-backdrop { background: rgba(15, 23, 42, 0.35); }
-:root[data-theme="light"] .cta { background: #ffc61a; color: #1d1600; }
+:root[data-theme="light"] .cta { background: var(--gold); color: #1d1600; }
 :root[data-theme="light"] .idx-tile.commodity .idx-id small { color: var(--gold); }
 
 /* recessed wells (black tint in dark) become a faint slate tint in daylight */
@@ -110,23 +107,20 @@
 :root[data-theme="light"] .page-foot { color: var(--muted); }
 :root[data-theme="light"] .ce-t { color: #b4520f; }
 :root[data-theme="light"] .pe-t { color: #1f63b8; }
-:root[data-theme="light"] .ind-tog.e20.on { color: #0d7f74; }
-:root[data-theme="light"] .ind-tog.e50.on { color: #6d3fd8; }
+
 :root[data-theme="light"] .sc-tog.e21.on, :root[data-theme="light"] .sc-legend .e21 { color: #a35f00; }
 :root[data-theme="light"] .sc-tog.s50.on, :root[data-theme="light"] .sc-legend .s50 { color: #2f62c9; }
 :root[data-theme="light"] .sc-tog.s200.on, :root[data-theme="light"] .sc-legend .s200 { color: #c33a33; }
 
 /* login: dark-ink headline gradient, white card, softer hero glow */
 :root[data-theme="light"] .hero-copy h1 { background: linear-gradient(180deg, #0f172a, #334155); -webkit-background-clip: text; background-clip: text; color: transparent; }
-:root[data-theme="light"] .login-hero { background: radial-gradient(600px 420px at 20% 90%, rgba(11, 142, 163, 0.14), transparent 70%), radial-gradient(500px 400px at 90% 10%, rgba(12, 147, 97, 0.08), transparent 70%); }
+:root[data-theme="light"] .login-hero { background: radial-gradient(600px 420px at 20% 90%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%), radial-gradient(500px 400px at 90% 10%, rgba(12, 147, 97, 0.08), transparent 70%); }
 :root[data-theme="light"] .login-card,
 :root[data-theme="light"] .welcome-back { background: #ffffff; backdrop-filter: none; }
-:root[data-theme="light"] .orb-p-e20 { stroke: #1f8fd1; }
-:root[data-theme="light"] .orb-p-e50 { stroke: #8b4fd8; }
-:root[data-theme="light"] .orb-legend .e20::before { background: #1f8fd1; }
-:root[data-theme="light"] .orb-legend .e50::before { background: #8b4fd8; }
 
 /* the search field lives inside its own pill: no second box inside it */
 :root[data-theme="light"] .sym-search { background: #ffffff; }
 :root[data-theme="light"] .sym-search input { background: transparent; border: 0; box-shadow: none; }
 :root[data-theme="light"] .ws > .cc-stats { background: #ffffff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px rgba(15, 23, 42, 0.05); }
+
+:root[data-theme="light"] .logo-img { border-color: #e5e7eb; }

@@ -96,6 +96,35 @@ def create_router(kite_dep, instruments, kite_call, session_kite) -> APIRouter:
                 "snapshot": [{"label": label, "key": key, "last": (q.get(key) or {}).get("last_price"), "prev": ((q.get(key) or {}).get("ohlc") or {}).get("close")}
                              for label, key in SNAPSHOT_KEYS.items()]}
 
+    rotation_lock = threading.Lock()
+
+    @router.get("/rotation")
+    def rotation(kind: str = "sectors", kite=Depends(kite_dep)):
+        """Sectors or themes by RSI: daily RSI(14) on the live price, its 5-session change, weekly RSI, returns, and the rotation quadrant."""
+        if kind not in ("sectors", "themes"):
+            raise HTTPException(400, "kind is sectors or themes")
+        names = market.ROTATION_SECTORS if kind == "sectors" else market.THEME_INDICES
+        today = _now().date()
+        missing = [n for n in names if not store.candles.get(n)]
+        if missing:
+            with rotation_lock:                     # first look after a restart: fetch the year of daily candles once, then keep them
+                tokens = {r["tradingsymbol"]: r["instrument_token"] for r in instruments(kite, "NSE") if r.get("segment") == "INDICES"}
+                for n in missing:
+                    if not store.candles.get(n) and n in tokens:
+                        store.candles[n] = market.fetch_daily(kite, tokens[n], today)
+                        time.sleep(0.35)
+        hit = cache.get(f"rot_{kind}")
+        if not hit or time.time() - hit[0] > 20:
+            hit = (time.time(), kite_call(kite.quote, *[f"NSE:{n}" for n in names]))
+            cache[f"rot_{kind}"] = hit
+        q = hit[1]
+        rows = [market.rotation_row(label, f"NSE:{n}", store.candles.get(n) or [], (q.get(f"NSE:{n}") or {}).get("last_price"), today.isoformat())
+                for n, label in names.items()]
+        rows = sorted((x for x in rows if x), key=lambda x: -x["rsi"])
+        counts = {k: sum(1 for x in rows if x["quadrant"] == k) for k in ("Leading", "Weakening", "Improving", "Lagging")}
+        return {"kind": kind, "rows": rows, "counts": counts, "lookback": market.ROTATION_LOOKBACK, "asof": _now().isoformat(timespec="seconds"),
+                "missing": [names[n] for n in names if not store.candles.get(n)]}
+
     @router.get("/normalized")
     def normalized(range: str = "1Y"):
         """Daily closes of the headline indices, each rebased to 100 at the start of the range."""
@@ -185,8 +214,9 @@ def create_router(kite_dep, instruments, kite_call, session_kite) -> APIRouter:
         while True:
             try:
                 kite = session_kite()
-                if kite and store.due(_now()):
-                    store.refresh(kite, lambda exch: instruments(kite, exch), _now())
+                listing = lambda exch: instruments(kite, exch)  # noqa: E731
+                if kite and (store.due(_now()) or store.behind(kite, listing, _now())):
+                    store.refresh(kite, listing, _now())
             except Exception:  # noqa: BLE001 - a background pass must never die
                 log.exception("terminal candles failed")
             time.sleep(60)

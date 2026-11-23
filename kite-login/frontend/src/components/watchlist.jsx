@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
+import { WithLogo } from "./Logo.jsx";
 
 // Watchlist kept in this browser (symbols only, no prices). Every component using the hook stays in sync.
 const KEY = "kd.watchlist";
@@ -93,7 +94,7 @@ export function SymbolSearch({ onPick, placeholder = "Search stocks, e.g. TCS, R
           {hits.map((h, k) => (
             <li key={h.instrument_token} role="option" aria-selected={k === i}>
               <button type="button" className={k === i ? "on" : ""} onMouseEnter={() => setI(k)} onClick={() => pick(h)}>
-                <b>{h.tradingsymbol}</b>
+                <WithLogo symbol={h.tradingsymbol} size={20}><b>{h.tradingsymbol}</b></WithLogo>
                 <span>{h.name}</span>
                 <small>{h.segment === "INDICES" ? "INDEX" : h.exchange}</small>
               </button>

@@ -1,0 +1,167 @@
+/* =====================================================================
+   Calendar: coming-up cards, a toolbar, a week board beside a mini month, and the agenda.
+   One colour per category, used the same way on chips, dots, toggles and table tags, in both themes.
+   ===================================================================== */
+.cal { --c-economic: var(--accent); --c-earnings: var(--violet); --c-dividends: var(--teal); --c-ipo: var(--blue); --c-holiday: var(--down); gap: 12px; }
+.cal .cal-empty { color: var(--muted); text-align: center; padding: 26px 12px; font-size: 13px; margin: 0; }
+
+/* ---------------------------------------------------------------- coming up */
+.cal-next { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cal-next-card {
+  --c: var(--c-economic);
+  text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 3px; padding: 12px 14px 12px 16px; min-width: 0; position: relative; overflow: hidden;
+  font: inherit; color: var(--text); cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.cal-next-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+.cal-next-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--c) 50%, transparent); }
+.cal-next-card:disabled { cursor: default; opacity: 0.7; }
+.cal-next-card.rbi { --c: var(--c-earnings); }
+.cal-next-card.holiday { --c: var(--c-holiday); }
+.cal-next-card.results { --c: var(--c-dividends); }
+.cal-next-k { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.cal-next-card b { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.cal-next-card small { max-width: 100%; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------------------------------------------------------- toolbar */
+.cal-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 12px; }
+.cal-weeknav { display: flex; align-items: center; gap: 6px; }
+.cal-weeknav b { font-size: 14px; min-width: 150px; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-weeknav .on { border-color: var(--accent); color: var(--accent); }
+.cal-arrow {
+  width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-2); color: var(--text);
+  font-size: 17px; line-height: 1; cursor: pointer; display: grid; place-items: center; padding: 0 0 2px;
+}
+.cal-arrow:hover { border-color: var(--accent); color: var(--accent); }
+.cal-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-kind {
+  --c: var(--c-economic);
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: none;
+  color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.cal-kind i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--c); }
+.cal-kind em { font-style: normal; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.cal-kind.on { color: var(--text); border-color: color-mix(in srgb, var(--c) 45%, transparent); background: color-mix(in srgb, var(--c) 10%, transparent); }
+.cal-kind.on i { background: var(--c); }
+.cal-kind.on em { color: var(--c); }
+.cal-kind.earnings { --c: var(--c-earnings); }
+.cal-kind.dividends { --c: var(--c-dividends); }
+.cal-kind.ipo { --c: var(--c-ipo); }
+.cal-search {
+  margin-left: auto; flex: 0 1 240px; min-width: 160px; height: 32px; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--bg-2); color: var(--text); font: inherit; font-size: 12.5px;
+}
+
+/* ---------------------------------------------------------------- week board */
+.cal-main { display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 12px; align-items: start; }
+.cal-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0; overflow: hidden; }
+.cal-board.cols7 { grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.75fr)); }
+.cal-col { display: flex; flex-direction: column; min-width: 0; min-height: 360px; border-right: 1px solid var(--border); }
+.cal-col:last-child { border-right: 0; }
+.cal-col.past { background: color-mix(in srgb, var(--bg-2) 60%, transparent); }
+.cal-col.past .cal-col-body { opacity: 0.6; }
+.cal-col.on { background: var(--accent-soft); }
+.cal-col.holiday { background: repeating-linear-gradient(135deg, transparent 0 8px, color-mix(in srgb, var(--c-holiday) 5%, transparent) 8px 16px); }
+.cal-col-head {
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; text-align: left;
+  padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; cursor: pointer;
+}
+.cal-col-head:hover { background: var(--hover); }
+.cal-col-head b { grid-row: span 2; font-size: 24px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.cal-dow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.cal-mon { font-size: 11.5px; color: var(--faint); grid-column: 2; }
+.cal-n { grid-row: 1 / span 2; grid-column: 3; font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cal-today { font-style: normal; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-accent); background: var(--accent); padding: 1px 6px; border-radius: 3px; grid-column: 3; grid-row: 1; }
+.cal-col.today .cal-col-head { box-shadow: inset 0 3px 0 var(--accent); }
+.cal-col.today .cal-col-head b { color: var(--accent); }
+.cal-col.today .cal-n { grid-row: 2; }
+.cal-holiday { margin: 8px 8px 0; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--down-soft); color: var(--c-holiday); font-size: 12px; font-weight: 700; display: flex; flex-direction: column; }
+.cal-holiday small { font-weight: 500; color: var(--text-2); }
+.cal-col-body { display: flex; flex-direction: column; gap: 10px; padding: 8px; }
+.cal-group { display: flex; flex-direction: column; gap: 4px; }
+.cal-group-k { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--faint); padding: 0 2px; }
+.cal-group-k em { font-style: normal; }
+.cal-chip {
+  --c: var(--c-economic);
+  display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%; padding: 4px 7px; border-radius: 5px; border: 0; border-left: 2px solid var(--c);
+  background: color-mix(in srgb, var(--c) 9%, transparent); color: var(--text); font: inherit; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.cal-chip:disabled { cursor: default; opacity: 1; }
+.cal-chip:hover:not(:disabled) { background: color-mix(in srgb, var(--c) 18%, transparent); }
+.cal-chip span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-chip em { font-style: normal; font-size: 10.5px; color: var(--muted); font-weight: 600; flex: none; }
+.cal-chip .logo-img, .cal-chip .logo-tile { flex: none; border-radius: 3px; }
+.cal-chip.expiry { --c: var(--c-economic); }
+.cal-chip.rbi { --c: var(--c-earnings); }
+.cal-chip.econ { --c: var(--muted); }
+.cal-chip.results { --c: var(--c-earnings); }
+.cal-chip.actions { --c: var(--c-dividends); }
+.cal-chip.ipo { --c: var(--c-ipo); }
+.cal-more { align-self: flex-start; background: none; border: 0; color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; padding: 2px; }
+.cal-more:hover { text-decoration: underline; }
+.cal-none { font-size: 11.5px; color: var(--faint); padding: 4px 2px; }
+
+/* ---------------------------------------------------------------- mini month and sources */
+.cal-rail { display: flex; flex-direction: column; gap: 12px; }
+.cal-month { padding: 12px; }
+.cal-month header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-month header b { font-size: 13.5px; }
+.cal-month .cal-arrow { width: 26px; height: 26px; font-size: 15px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.cal-grid-h { font-size: 10px; font-weight: 700; color: var(--faint); text-align: center; padding: 2px 0 4px; }
+.cal-grid button {
+  position: relative; height: 32px; border: 0; border-radius: 5px; background: none; color: var(--text); font: inherit; font-size: 12px; font-variant-numeric: tabular-nums;
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px 0 0; gap: 2px; min-width: 0;
+}
+.cal-grid button:hover { background: var(--hover); }
+.cal-grid button.out { color: var(--faint); }
+.cal-grid button.week { background: var(--accent-soft); }
+.cal-grid button.today { color: var(--on-accent); }
+.cal-grid button.today::before { content: ""; position: absolute; top: 2px; left: 50%; width: 20px; height: 18px; transform: translateX(-50%); border-radius: 4px; background: var(--accent); z-index: 0; }
+.cal-grid button { isolation: isolate; }
+.cal-d { position: relative; z-index: 1; }
+.cal-grid button.hol { color: var(--c-holiday); font-weight: 700; }
+.cal-dots { display: flex; gap: 2px; position: relative; z-index: 1; margin-top: auto; padding-bottom: 3px; }
+.cal-dots i, .cal-legend i { width: 4px; height: 4px; border-radius: 50%; background: var(--c-economic); }
+.cal-dots i.earnings, .cal-legend i.earnings { background: var(--c-earnings); }
+.cal-dots i.dividends, .cal-legend i.dividends { background: var(--c-dividends); }
+.cal-dots i.ipo, .cal-legend i.ipo { background: var(--c-ipo); }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 11px; color: var(--muted); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cal-legend i { width: 7px; height: 7px; }
+.cal-src { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.cal-src h4 { margin: 0 0 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.cal-src div { display: flex; flex-direction: column; font-size: 12px; }
+.cal-src p { margin: 4px 0 0; }
+
+/* ---------------------------------------------------------------- agenda */
+.cal-agenda-sec + .cal-agenda-sec { margin-top: 14px; }
+.cal-sec-h { --c: var(--c-economic); display: flex; align-items: center; gap: 8px; margin: 6px 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); }
+.cal-sec-h i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.cal-sec-h em { font-style: normal; color: var(--muted); font-weight: 600; }
+.cal-sec-h.earnings { --c: var(--c-earnings); }
+.cal-sec-h.dividends { --c: var(--c-dividends); }
+.cal-sec-h.ipo { --c: var(--c-ipo); }
+.cal-tag { --c: var(--muted); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); white-space: nowrap; }
+.cal-tag.expiry { --c: var(--c-economic); }
+.cal-tag.rbi { --c: var(--c-earnings); }
+.cal-tag.holiday { --c: var(--c-holiday); }
+.cal-tag.actions { --c: var(--c-dividends); }
+.cal-tag.ipo { --c: var(--c-ipo); }
+.cal-imp { display: inline-flex; gap: 2px; }
+.cal-imp i { width: 6px; height: 12px; border-radius: 1px; background: var(--border-2); }
+.cal-imp i.on { background: var(--accent); }
+
+/* ---------------------------------------------------------------- narrow screens */
+@media (max-width: 1180px) {
+  .cal-main { grid-template-columns: 1fr; }
+  .cal-rail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .cal-next { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cal-board, .cal-board.cols7 { grid-template-columns: 1fr; }
+  .cal-col { min-height: 0; border-right: 0; border-bottom: 1px solid var(--border); }
+  .cal-rail { grid-template-columns: 1fr; }
+  .cal-search { margin-left: 0; flex: 1 1 100%; }
+}
+.cal-agenda td { white-space: normal; vertical-align: top; }
+.cal-agenda td .muted.small { display: block; max-width: 640px; line-height: 1.45; }

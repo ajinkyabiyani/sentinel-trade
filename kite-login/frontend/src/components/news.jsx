@@ -3,11 +3,8 @@ import { api } from "../lib/api.js";
 
 export const NEWS_SOURCES = [
   { id: "all", label: "All sources" },
-  { id: "yahoo", label: "Yahoo Finance" },
-  { id: "et", label: "Economic Times" },
   { id: "mint", label: "Mint" },
-  { id: "bs", label: "Business Standard" },
-  { id: "google", label: "Google News" },
+  { id: "nse", label: "NSE filings" },
 ];
 const POLL_MS = 45_000;
 

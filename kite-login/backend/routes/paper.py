@@ -1,4 +1,4 @@
-"""Paper trades: ORB controls, the option-strategy book and screener trades. Nothing here reaches Kite."""
+"""Paper trades: the option-strategy book and screener trades. Nothing here reaches Kite."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,36 +13,14 @@ from pydantic import BaseModel, Field
 from core import IST, _kite_call, app, kite_client, log, store
 from routes.market import _instrument_list
 from routes.options import OPTION_INDICES
-from strategies import orb
+from strategies import common
 
 
 # ---------------------------------------------------------------------------
-# Paper desk: ORB pause / emergency stop, and a paper book for option strategies built on the Options tab.
+# A paper book for option strategies built on the Options tab.
 # Paper only: nothing here places, modifies or cancels a Kite order. Fills use the live bid / ask from a Kite quote.
 # ---------------------------------------------------------------------------
-class PauseBody(BaseModel):
-    paused: bool
-
-
-@app.post("/api/orb/pause")
-def orb_pause(body: PauseBody, kite: KiteConnect = Depends(kite_client)):
-    try:
-        orb.engine.pause(body.paused)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
-    return {"snapshot": orb.engine.snapshot}
-
-
-@app.post("/api/orb/kill")
-def orb_kill(kite: KiteConnect = Depends(kite_client)):
-    try:
-        orb.engine.kill()
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
-    return {"snapshot": orb.engine.snapshot}
-
-
-PAPER_OPT_FILE = orb.CACHE_DIR / "paper_options.json"
+PAPER_OPT_FILE = common.CACHE_DIR / "paper_options.json"
 _paper_lock = threading.Lock()
 
 
@@ -52,10 +30,10 @@ STT_OPT_EXERCISE = 0.0015   # STT on the intrinsic value of long options exercis
 
 def _opt_costs(buy_val: float, sell_val: float, orders: int, exercised: float = 0.0, stt_sell: float | None = None) -> float:
     """Zerodha F&O options charges for the given premium turnover: ₹20 an order, STT 0.15% of sell premium (and 0.15%
-    of the intrinsic value of long legs exercised at expiry), NSE transaction 0.03503% of premium, SEBI ₹10/crore,
+    of the intrinsic value of long legs exercised at expiry), NSE transaction 0.03553% of premium, SEBI ₹10/crore,
     GST 18% on brokerage + transaction + SEBI, stamp 0.003% on buys."""
     brk = 20.0 * orders
-    txn = 0.0003503 * (buy_val + sell_val)
+    txn = 0.0003553 * (buy_val + sell_val)
     sebi = 1e-6 * (buy_val + sell_val)
     return round(brk + STT_OPT_SELL * (sell_val if stt_sell is None else stt_sell) + STT_OPT_EXERCISE * exercised + txn + sebi + 0.18 * (brk + txn + sebi)
                  + 0.00003 * buy_val, 2)
@@ -90,7 +68,7 @@ def _paper_book() -> dict:
 
 
 def _save_paper_book(book: dict) -> None:
-    orb.CACHE_DIR.mkdir(exist_ok=True)
+    common.CACHE_DIR.mkdir(exist_ok=True)
     tmp = PAPER_OPT_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(book, indent=1), encoding="utf-8")
     tmp.replace(PAPER_OPT_FILE)
@@ -199,11 +177,11 @@ def paper_options_delete(pid: str):
 # ---------------------------------------------------------------------------
 def _eq_costs(product: str, buy_val: float, sell_val: float) -> float:
     if product == "MIS":
-        return round(orb.costs(buy_val, sell_val), 2)
-    # delivery: no brokerage, STT 0.1% both sides, NSE txn, SEBI, stamp 0.015% on buys, DP ₹15.93 on the sell
-    txn = 0.0000297 * (buy_val + sell_val)
+        return round(common.costs(buy_val, sell_val), 2)
+    # delivery: no brokerage, STT 0.1% both sides, NSE txn, SEBI, stamp 0.015% on buys, DP ₹15.34 on the sell
+    txn = 0.0000307 * (buy_val + sell_val)
     sebi = 1e-6 * (buy_val + sell_val)
-    return round(0.001 * (buy_val + sell_val) + txn + sebi + 0.18 * (txn + sebi) + 0.00015 * buy_val + 15.93, 2)
+    return round(0.001 * (buy_val + sell_val) + txn + sebi + 0.18 * (txn + sebi) + 0.00015 * buy_val + 15.34, 2)
 
 
 def _pos_costs(p: dict, buy: float, sell: float, settled: bool = False) -> float:

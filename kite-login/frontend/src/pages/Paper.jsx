@@ -3,15 +3,15 @@ import { api } from "../lib/api.js";
 import { Sparkline } from "../components/charts.jsx";
 import { inr, num, rupee, signed, tone } from "../lib/format.js";
 import { useTicks } from "../lib/ticks.js";
-import { Badge, DataTable, Empty, ErrorNote, Modal, Spinner, useLoad } from "../components/ui.jsx";
-import { EquityChart } from "./Backtest.jsx";
+import { Badge, DataTable, Empty, ErrorNote, Spinner, useLoad } from "../components/ui.jsx";
+import { EquityChart } from "../components/charts.jsx";
+import { WithLogo } from "../components/Logo.jsx";
+import SideTag from "../components/SideTag.jsx";
 
-// Portfolio & Risk: one paper portfolio made of the strategy desks, ₹1 lakh each (ORB, Darvas). Every
+// Portfolio & Risk: one paper portfolio made of the strategy desks: ₹1 lakh for the Multi Agent Team, ₹5 lakh and ₹2 lakh for the Agent Pipeline. Every
 // figure is combined across them and marked live on Kite ticks: equity, today's P&L, open positions, closed trades,
-// the equity curve and the risk controls. Option and screener trades paper-traded by hand are listed with their own
+// and the equity curve. Option and stock trades paper-traded by hand are listed with their own
 // P&L, outside the strategies' capital. Paper only: nothing here sends an order to Kite.
-const STATE = { ACTIVE: ["accent", "Trading"], CLOSED: ["", "Day closed"], HALTED_PROFIT: ["buy", "Profit stop hit"],
-  HALTED_LOSS: ["sell", "Loss stop hit"], HALTED_MANUAL: ["sell", "Stopped by you"] };
 const day = (s) => (s && s !== "start" ? new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "start");
 // IST wall clock, whatever the browser's time zone: UTC + 5:30
 const istIso = () => new Date(Date.now() + 330 * 60_000).toISOString();
@@ -23,13 +23,20 @@ const pctCell = (v) => (v == null || !Number.isFinite(v) ? <span className="mute
 const gainPct = (t, pnl) => (t.entry && t.qty ? (pnl / (t.entry * t.qty)) * 100 : null);
 const flash = (v) => (v >= 0 ? "flash-up" : "flash-down");
 
-// Live mark of a strategy trade: intraday trades move their last net P&L by the tick since the engine's last price,
-// on the share still open; swing positions are marked from entry.
+// Live mark of a strategy trade: its last net P&L moved by the tick since the engine's last price, on the share still open.
+// A stock trade streams as NSE:SYMBOL; an option trade carries its own key.
+export const tickKey = (t) => t.key || `NSE:${t.symbol}`;
+// A spread streams both its legs, and its live price is what it would cost to close: the short leg less the long one.
+export const tickKeys = (t) => (t.legs ? t.legs.map((l) => l.key) : [tickKey(t)]);
+export const tickOf = (t, ticks) => {
+  if (!t.legs) return ticks[tickKey(t)];
+  const prices = t.legs.map((l) => ticks[l.key]?.last_price);
+  return prices.every((p) => p != null) ? { last_price: t.legs.reduce((a, l, i) => a - l.sign * prices[i], 0) } : undefined;
+};
+
 export function markTrade(t, tk) {
   const px = tk?.last_price ?? t.ltp;
-  const pnl = t.kind === "intraday"
-    ? t.net + (px != null && t.ltp != null ? (px - t.ltp) * t.qty * (t.left ?? 1) * dirOf(t) : 0)
-    : (px - t.entry) * t.qty;
+  const pnl = t.net + (px != null && t.ltp != null ? (px - t.ltp) * t.qty * (t.left ?? 1) * dirOf(t) : 0);
   const stop = t.stop_now ?? t.stop;
   const risk = stop != null && px != null ? Math.max(0, (px - stop) * dirOf(t)) * t.qty * (t.left ?? 1) : 0;
   return { px, pnl, chg: tk?.change, pct: gainPct(t, pnl), risk, value: (px ?? t.entry) * t.qty * (t.left ?? 1) };
@@ -38,9 +45,9 @@ export function markTrade(t, tk) {
 // Every desk's open trades, and each desk's equity / today's P&L moved by the live marks.
 export function liveDesks(data, ticks) {
   const desks = (data?.desks || []).filter((d) => !d.error);
-  const opens = desks.flatMap((d) => d.open.map((t) => ({ ...t, desk: d.id, deskName: d.name, kind: d.kind })));
+  const opens = desks.flatMap((d) => d.open.map((t) => ({ ...t, desk: d.id, deskName: d.name })));
   const rows = desks.map((d) => {
-    const ms = opens.filter((t) => t.desk === d.id).map((t) => markTrade(t, ticks[`NSE:${t.symbol}`]));
+    const ms = opens.filter((t) => t.desk === d.id).map((t) => markTrade(t, tickOf(t, ticks)));
     const unreal = ms.reduce((a, m) => a + m.pnl, 0);
     const moved = unreal - d.unrealized;
     return { ...d, unrealLive: unreal, equityLive: d.equity + moved, todayLive: (d.today ?? 0) + moved,
@@ -58,24 +65,107 @@ export function combinedCurve(desks) {
   return [["start", start], ...dates.map((dt) => [dt, curves.reduce((a, c) => a + ([...c.pts].reverse().find((p) => p[0] <= dt)?.[1] ?? c.cap), 0)])];
 }
 
-function Meter({ label, tip, value, max, text, sub, cls }) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+// Your paper capital and risk limits, shared by the multi-agent teams. They size nothing until you confirm them.
+function RiskSettings() {
+  const q = useLoad(api.riskSettings, []);
+  const cur = q.data?.settings;
+  const limits = q.data?.limits;
+  const [editing, setEditing] = useState(false);
+  const [capital, setCapital] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  if (!limits) return null;
+  const n = Number(capital) || 0;
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.saveRiskSettings({ capital: n, confirmed });
+      await q.reload(true);
+      setEditing(false);
+      setConfirmed(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <div className="rc-row" title={tip}>
-      <div className="rc-top"><span>{label}</span><b className={cls}>{text}</b></div>
-      <div className={`rc-bar ${cls || ""}`}><i style={{ width: `${pct}%` }} /></div>
-      <small className="muted">{sub ?? `${num(pct, 0)}%`}</small>
-    </div>
+    <section className="card">
+      <header className="card-head">
+        <h3>Team risk settings</h3>
+        <span className="muted small">used by the Multi Agent Team</span>
+      </header>
+      {cur && !editing ? (
+        <p className="muted small">
+          Paper capital <b>{inr(cur.capital, 0)}</b> · at most <b>{inr(cur.max_risk_inr, 0)}</b> a trade ({cur.max_risk_pct}%) · daily loss limit <b>{inr(cur.daily_loss_inr, 0)}</b> ({cur.daily_loss_pct}%){" "}
+          <button type="button" className="linklike" onClick={() => { setCapital(cur.capital); setEditing(true); }}>Change</button>
+        </p>
+      ) : (
+        <form className="jd-form" onSubmit={save}>
+          {!cur && <p className="small">The teams take no paper trade until you set your capital and confirm the limits.</p>}
+          <label><span>Paper trading capital (₹)</span><input type="number" min="1" step="any" required value={capital} onChange={(e) => setCapital(e.target.value)} /></label>
+          <label className="jd-inline">
+            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+            <span>I confirm {limits.max_risk_pct}% per trade{n ? ` (${inr(n * limits.max_risk_pct / 100, 0)})` : ""} and a {limits.daily_loss_pct}% daily loss limit{n ? ` (${inr(n * limits.daily_loss_pct / 100, 0)})` : ""}</span>
+          </label>
+          <button type="submit" className="primary" disabled={busy || !confirmed}>{busy ? "Saving…" : "Save"}</button>
+          {cur && <button type="button" className="ghost" onClick={() => setEditing(false)}>Cancel</button>}
+          <ErrorNote error={error || q.error} />
+        </form>
+      )}
+    </section>
   );
 }
 
-export default function Paper({ go }) {
+// Telegram: new calls from every desk and the end-of-day report. The bot's token and chat id stay in signal_bot/secrets.env.
+function TelegramCard() {
+  const q = useLoad(api.telegramStatus, [], 30_000);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState(null);
+  const t = q.data;
+  if (!t) return null;
+  const act = async (name, fn) => {
+    setBusy(name);
+    setError(null);
+    try {
+      await fn();
+      await q.reload(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <section className="card">
+      <header className="card-head">
+        <h3>Telegram</h3>
+        <span className="muted small">{!t.configured ? "not set up: add the bot token and chat id to signal_bot/secrets.env" : t.enabled ? `on${t.channel ? " · chat and channel" : " · chat only"}` : "off"}</span>
+      </header>
+      <p className="muted small">
+        New calls from every desk and the end-of-day report.
+        {t.last_time && <> Last send {t.last_time.slice(11, 16)}: {t.last_ok ? "delivered" : (t.last_error || "failed")}.</>}
+        {t.queued > 0 && <> {t.queued} waiting.</>}
+      </p>
+      <div className="row-actions">
+        <button type="button" className={t.enabled ? "ghost" : "primary"} disabled={!t.configured || Boolean(busy)} onClick={() => act("toggle", () => api.telegramEnabled(!t.enabled))}>
+          {busy === "toggle" ? "Saving…" : t.enabled ? "Turn off" : "Turn on"}
+        </button>
+        <button type="button" className="ghost" disabled={!t.configured || Boolean(busy)} onClick={() => act("test", api.telegramTest)}>{busy === "test" ? "Sending…" : "Send a test"}</button>
+      </div>
+      <ErrorNote error={error || q.error} />
+    </section>
+  );
+}
+
+export default function Paper() {
   const pf = useLoad(api.portfolio, [], 15_000);
-  const pp = useLoad(api.orbPaper, [], 15_000);
   const po = useLoad(api.paperOptions, [], 15_000);
   const [only, setOnly] = useState(null);
   const [open, setOpen] = useState({});
-  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
@@ -83,9 +173,9 @@ export default function Paper({ go }) {
   const pfOpen = (pf.data?.desks || []).flatMap((d) => d.open || []);
   const optPos = po.data?.positions || [];
   const optOpen = optPos.filter((p) => p.status === "open");
-  const { ticks, live } = useTicks([...pfOpen.map((t) => `NSE:${t.symbol}`), ...optOpen.flatMap((p) => p.legs.map((l) => l.key))]);
+  const { ticks, live } = useTicks([...pfOpen.flatMap(tickKeys), ...optOpen.flatMap((p) => p.legs.map((l) => l.key))]);
 
-  const mark = (t) => markTrade(t, ticks[`NSE:${t.symbol}`]);
+  const mark = (t) => markTrade(t, tickOf(t, ticks));
   const legPx = (l) => ticks[l.key]?.last_price ?? l.ltp ?? l.entry;
   const optNet = (p) => (p.status !== "open" ? p.net
     : (p.net ?? 0) + p.legs.reduce((a, l) => a + sgn(l) * (legPx(l) - (l.ltp ?? l.entry)) * l.qty, 0));
@@ -93,9 +183,6 @@ export default function Paper({ go }) {
   const { desks, opens, rows, sum, capital, equity, today: todayPnl } = liveDesks(pf.data, ticks);
   const realized = sum((r) => r.realized);
   const unreal = sum((r) => r.unrealLive);
-  const openRisk = sum((r) => r.risk);
-  const exposure = sum((r) => r.value);
-  const manualOpen = optOpen.reduce((a, p) => a + optNet(p), 0);
   const manualClosed = optPos.filter((p) => p.status === "closed").reduce((a, p) => a + p.net, 0);
 
   const curve = useMemo(() => {
@@ -132,56 +219,34 @@ export default function Paper({ go }) {
   const closed = useMemo(() => [
     ...desks.flatMap((d) => d.closed.map((t) => ({ ...t, desk: d.id, deskName: d.name, when: t.session || t.exit_date,
       id: `${d.id}${t.symbol}${t.session || t.entry_date}${t.entry_time}${t.exit}`, pct: gainPct(t, t.net) }))),
-    ...optPos.filter((p) => p.status === "closed").map((p) => ({ id: p.id, desk: "manual", deskName: p.kind === "equity" ? "Screener (manual)" : "Options (manual)",
+    ...optPos.filter((p) => p.status === "closed").map((p) => ({ id: p.id, desk: "manual", deskName: p.kind === "equity" ? "Stocks (manual)" : "Options (manual)",
       symbol: `${p.underlying} · ${p.name}`, when: p.closed.slice(0, 10), entry_time: p.opened.slice(11, 16), exit_time: p.closed.slice(11, 16),
       net: p.net, exit_reason: p.exit_reason || "closed by you", pct: p.premium ? (p.net / Math.abs(p.premium)) * 100 : null, opt: p })),
   ], [pf.data, po.data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ORB's own controller: daily profit pause, loss limit, pause and emergency stop
-  const orbDay0 = pp.data?.days?.[0];
-  const orbLive = Boolean(orbDay0 && !orbDay0.final && orbDay0.session === t0);
-  const paused = Boolean(orbDay0?.settings?.paused);
-  const halted = orbDay0?.state?.startsWith("HALTED");
-  const orbToday = rows.find((r) => r.id === "orb")?.todayLive ?? 0;
-  const orbCap = rows.find((r) => r.id === "orb")?.capital || 100000;
-  const lossAmt = orbCap * 0.05;
-
-  // Darvas desk: 1% of equity at risk a trade, at most 20% of equity in one stock, at most 5 open positions
-  const dv = rows.find((r) => r.id === "darvas");
-  const dEq = dv?.equityLive || dv?.capital || 100000;
-  const dOpen = opens.filter((t) => t.desk === "darvas");
-  const dLargest = dOpen.reduce((a, t) => Math.max(a, mark(t).value), 0);
-  const dPending = desks.find((d) => d.id === "darvas")?.pending?.length ?? 0;
 
   const act = async (name, fn) => {
     setBusy(name);
     setErr("");
     try {
       await fn();
-      await Promise.all([pf.reload(true), pp.reload(true), po.reload(true)]);
+      await Promise.all([pf.reload(true), po.reload(true)]);
     } catch (e) {
       setErr(e.message);
     } finally {
       setBusy("");
     }
   };
-  const emergency = () => act("kill", async () => {
-    const errs = [];
-    if (orbLive && !halted) await api.orbKill().catch((e) => errs.push(`ORB: ${e.message}`));
-    for (const p of optOpen) await api.paperOptionsExit(p.id).catch((e) => errs.push(`${p.name}: ${e.message}`));
-    setConfirm(false);
-    if (errs.length) throw new Error(errs.join(" · "));
-  });
 
   if (!pf.data) return <section className="card orb-loading">{pf.error ? <ErrorNote error={pf.error} /> : <Spinner />}</section>;
   const shown = (r) => !only || r.desk === only;
   const openShown = opens.filter(shown);
-  const pending = desks.flatMap((d) => d.pending.map((o) => ({ ...o, desk: d.id, deskName: d.name }))).filter(shown);
   const manualShown = !only || only === "manual" ? optOpen : [];
 
   return (
-    <div className="paper-desk pf">
+    <div className="paper-desk pf no-side">
       <div className="pd-main">
+        <ErrorNote error={err || po.error} />
+        {broken.map((d) => <ErrorNote key={d.id} error={`${d.name}: ${d.error}`} />)}
         <section className="card pd-kpis pf-kpis">
           <span><small>Total equity</small><b>{inr(equity, 0)}</b><em className="muted">capital {inr(capital, 0)} · <span className={tone(equity - capital)}>{rupee(equity - capital)} ({signed(pctOf(equity - capital, capital))}%)</span></em></span>
           <span><small>Today's P&L</small><b key={Math.round(todayPnl)} className={`${tone(todayPnl)} ${flash(todayPnl)}`}>{rupee(todayPnl)}</b><em className={tone(todayPnl)}>{signed(pctOf(todayPnl, capital))}% of capital</em></span>
@@ -202,7 +267,7 @@ export default function Paper({ go }) {
                 <span className="pdk-name">{r.name} · {inr(r.capital, 0)}</span>
                 <b className="pdk-eq">{inr(r.equityLive, 0)}</b>
                 <span className={`small ${tone(chg)}`}>{rupee(chg)} · {signed(pctOf(chg, r.capital))}%</span>
-                <span className="small">today <b className={tone(r.todayLive)}>{rupee(r.todayLive)}</b>{r.open.length ? ` · ${r.open.length} open` : ""}{r.pending.length ? ` · ${r.pending.length} orders` : ""}</span>
+                <span className="small">today <b className={tone(r.todayLive)}>{rupee(r.todayLive)}</b>{r.open.length ? ` · ${r.open.length} open` : ""}</span>
                 <div className="pdk-spark">{r.curve.length > 1 ? <Sparkline values={r.curve.map((c) => c[1])} height={34} /> : <span className="muted small">no trades yet</span>}</div>
                 <span className="muted small">{r.stats.trades} trades{r.stats.win_rate != null ? ` · ${num(r.stats.win_rate, 0)}% won` : ""}{r.stats.profit_factor != null ? ` · PF ${num(r.stats.profit_factor)}` : ""}</span>
               </button>
@@ -232,7 +297,7 @@ export default function Paper({ go }) {
                     const m = mark(t);
                     return (
                       <tr key={t.desk + t.symbol + (t.entry_date || t.session) + t.entry_time}>
-                        <td><b>{t.symbol}</b> <span className={`dir ${(t.side || "LONG").toLowerCase()}`}>{t.side || "LONG"}</span></td>
+                        <td><WithLogo symbol={t.symbol}><b>{t.symbol}</b></WithLogo> <SideTag symbol={t.symbol} side={t.side} /></td>
                         <td><span className="src bot">{t.deskName}</span></td>
                         <td className="small">{t.entry_date ? `${day(t.entry_date)} ` : ""}{t.entry_time || ""} @ {num(t.entry)}</td>
                         <td className="num">{t.left != null && t.left < 1 ? <>{Math.round(t.qty * t.left)} <small className="muted">of {t.qty}</small></> : t.qty}</td>
@@ -253,7 +318,7 @@ export default function Paper({ go }) {
                               {open[p.id] ? "▾" : "▸"} {p.underlying} · {p.name}
                             </button>
                           </td>
-                          <td><span className="src opt">{p.kind === "equity" ? "Screener (manual)" : "Options (manual)"}</span></td>
+                          <td><span className="src opt">{p.kind === "equity" ? "Stocks (manual)" : "Options (manual)"}</span></td>
                           <td className="small">{p.opened?.slice(11, 16)} · {p.premium >= 0 ? "credit" : "debit"} ₹{num(Math.abs(p.premium), 0)}</td>
                           <td className="num">{p.legs.reduce((a, l) => a + l.lots, 0)} lots</td>
                           <td className="num">
@@ -283,14 +348,7 @@ export default function Paper({ go }) {
                 </tbody>
               </table>
             </div>
-          ) : <Empty>No open position. Each strategy opens its paper trades by itself on its own ₹1 lakh.</Empty>}
-          {pending.length > 0 && (
-            <ul className="pdk-orders">
-              {pending.map((o) => (
-                <li key={o.desk + o.symbol + o.signal_date}><b>{o.symbol}</b> <span className="muted">({o.deskName})</span> buy-stop {num(o.trigger)} (limit {num(o.limit)}), stop {num(o.stop)} · breakout {day(o.signal_date)} · {3 - o.valid_days} sessions left</li>
-              ))}
-            </ul>
-          )}
+          ) : <Empty>No open position. Each strategy opens its paper trades by itself on its own capital.</Empty>}
         </section>
 
         <section className="card">
@@ -316,12 +374,12 @@ export default function Paper({ go }) {
         <section className="card">
           <header className="card-head">
             <h3>Closed trades</h3>
-            <span className="muted small">{closed.filter(shown).length} trades{manualClosed ? ` · manual option / screener trades ${rupee(manualClosed)}, outside the strategies' capital` : ""}</span>
+            <span className="muted small">{closed.filter(shown).length} trades{manualClosed ? ` · manual option / stock trades ${rupee(manualClosed)}, outside the strategies' capital` : ""}</span>
           </header>
           <DataTable rowKey={(r) => r.id} rows={closed.filter(shown)} initialSort={{ key: "when", dir: "desc" }} empty="No closed paper trade yet."
             columns={[
               { key: "when", label: "Day", render: (r) => day(r.when) },
-              { key: "symbol", label: "Stock", render: (r) => <><b>{r.symbol}</b>{r.side && <> <span className={`dir ${r.side.toLowerCase()}`}>{r.side}</span></>}</> },
+              { key: "symbol", label: "Stock", render: (r) => <><WithLogo symbol={r.symbol}><b>{r.symbol}</b></WithLogo>{r.side && <> <SideTag symbol={r.symbol} side={r.side} /></>}</> },
               { key: "deskName", label: "Strategy", render: (r) => <span className={`src ${r.desk === "manual" ? "opt" : "bot"}`}>{r.deskName}</span> },
               { key: "entry_time", label: "In → out", render: (r) => (r.opt ? `${r.entry_time} → ${r.exit_time}`
                 : `${r.entry_date && r.entry_date !== r.when ? `${day(r.entry_date)} ` : ""}${r.entry_time || ""} @ ${num(r.entry)} → ${r.exit_time || ""} @ ${num(r.exit)}`) },
@@ -333,66 +391,10 @@ export default function Paper({ go }) {
                 <button type="button" className="leg-x" title="Remove from the journal" onClick={() => act(r.id, () => api.paperOptionsDelete(r.id))}>×</button>) },
             ]} />
         </section>
+        <RiskSettings />
+        <TelegramCard />
       </div>
 
-      <aside className="card pd-risk">
-        <h3>Risk controls</h3>
-        <p className="muted small">One ₹{num(capital / 1e5, 0)} lakh paper portfolio: ₹1 lakh for each strategy, each with its own limits, marked on live prices.</p>
-
-        <h4 className="rc-group">Portfolio</h4>
-        <Meter label="Exposure" tip="Market value of the open positions as a share of total capital" value={exposure} max={capital}
-          text={`${num(pctOf(exposure, capital), 1)}%`} sub={`${inr(exposure, 0)} of ${inr(capital, 0)}`} />
-        <Meter label="Open risk" tip="Loss if every open position hits its current stop" value={openRisk} max={capital * 0.03}
-          text={inr(openRisk, 0)} cls={openRisk > capital * 0.03 ? "down" : ""} sub={`${num(pctOf(openRisk, capital), 2)}% of capital to the stops · limit 3%`} />
-        <Meter label="Drawdown from peak" tip="Fall of the combined equity from its highest mark" value={maxDd} max={12}
-          text={`${num(maxDd, 1)}%`} cls={maxDd > 8 ? "down" : ""} sub="largest so far · target ≤ 12%" />
-
-        <h4 className="rc-group">ORB <small className="muted">₹{num(orbCap / 1e5, 0)} lakh · intraday</small></h4>
-        <Meter label="Daily profit pause" tip="ORB stops for the day once its net P&L reaches ₹7,000" value={Math.max(0, orbToday)} max={7000}
-          text={`${inr(Math.max(0, orbToday), 0)} / ₹7,000`} cls="up" />
-        <Meter label="Daily loss limit" tip="ORB stops for the day at a loss of 5% of its capital" value={Math.max(0, -orbToday)} max={lossAmt}
-          text={`5% (${inr(lossAmt, 0)})`} cls="down" sub={`used ${inr(Math.max(0, -orbToday), 0)}`} />
-        <div className="rc-state">
-          <span>ORB today</span>
-          <Badge tone={paused ? "amber" : STATE[orbDay0?.state]?.[0]}>{paused && !halted ? "Entries paused" : STATE[orbDay0?.state]?.[1] || "–"}</Badge>
-        </div>
-
-        <h4 className="rc-group">Darvas <small className="muted">₹{num((dv?.capital || 100000) / 1e5, 0)} lakh · swing</small></h4>
-        <Meter label="Open positions" tip="At most 5 Darvas positions at a time; a sixth breakout is skipped" value={dOpen.length} max={5}
-          text={`${dOpen.length} / 5`} cls={dOpen.length >= 5 ? "down" : ""} sub={`${dPending} buy order${dPending === 1 ? "" : "s"} pending (valid 3 sessions)`} />
-        <Meter label="Largest position" tip="No more than 20% of the desk's equity in one stock" value={dLargest} max={dEq * 0.2}
-          text={`${num(pctOf(dLargest, dEq), 1)}% / 20%`} cls={dLargest > dEq * 0.2 ? "down" : ""} sub={`risk 1% of equity (${inr(dEq * 0.01, 0)}) a trade · trailing box stop`} />
-        <div className="rc-actions">
-          <button type="button" className="ghost" disabled={!orbLive || halted || busy === "pause"} onClick={() => act("pause", () => api.orbPause(!paused))}
-            title={orbLive ? "Open ORB trades keep running; no new ORB entry is taken while paused" : "Available during the live session"}>
-            {paused ? "▶ Resume ORB entries" : "❚❚ Pause ORB entries"}
-          </button>
-          <button type="button" className="danger" disabled={busy === "kill" || (!(orbLive && !halted) && !optOpen.length)} onClick={() => setConfirm(true)}>
-            ⚠ Emergency stop
-          </button>
-        </div>
-        <button type="button" className="ghost small" onClick={() => go("options")}>Paper-trade an option strategy →</button>
-        {manualOpen !== 0 && <p className="muted small">Manual option / screener trades open: <b className={tone(manualOpen)}>{rupee(manualOpen)}</b> (not part of the ₹1 lakh strategy capital).</p>}
-        <ErrorNote error={err || po.error || pp.error} />
-        {broken.map((d) => <ErrorNote key={d.id} error={`${d.name}: ${d.error}`} />)}
-      </aside>
-
-      {confirm && (
-        <Modal title="Emergency stop" onClose={() => setConfirm(false)}
-          footer={(
-            <>
-              <button type="button" className="ghost" onClick={() => setConfirm(false)}>Cancel</button>
-              <button type="button" className="danger" disabled={busy === "kill"} onClick={emergency}>{busy === "kill" ? "Stopping…" : "Stop everything"}</button>
-            </>
-          )}>
-          <p>This closes now:</p>
-          <ul className="plain">
-            {orbLive && !halted && <li>Every open ORB trade, at the last price, and ORB halted for the rest of today.</li>}
-            {optOpen.length > 0 && <li>{optOpen.length} manual option / screener position{optOpen.length === 1 ? "" : "s"}, at the live bid / ask.</li>}
-          </ul>
-          <p className="muted small">Darvas positions exit on their trailing box stop and are not closed here. Paper only: no Kite order is sent. This cannot be undone for today.</p>
-        </Modal>
-      )}
     </div>
   );
 }

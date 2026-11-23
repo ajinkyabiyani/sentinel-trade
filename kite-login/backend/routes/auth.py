@@ -9,7 +9,6 @@ from kiteconnect.exceptions import KiteException, TokenException
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
 from core import CREDENTIALS_FILE, PROFILE_FIELDS, _kite_call, app, kite_client, load_credentials, log, store
-from routes.darvas import ensure_fresh_scan
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +75,6 @@ def login(body: LoginRequest):
         log.exception("generate_session failed")
         raise HTTPException(502, "Could not reach Kite. Check your internet connection and try again.")
     d = store.save(body.api_key, sess["access_token"], sess)
-    ensure_fresh_scan(d)
     return store.public(d)
 
 
