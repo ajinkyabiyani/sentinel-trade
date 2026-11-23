@@ -3,6 +3,7 @@ import { api } from "../../lib/api.js";
 import { num } from "../../lib/format.js";
 import { Badge, DataTable, Empty, ErrorNote, Segmented, Spinner, useLoad } from "../../components/ui.jsx";
 import { SourceNote } from "./shared.jsx";
+import { WithLogo } from "../../components/Logo.jsx";
 
 // Who is buying and selling in size: bulk, block and short deals reported to NSE, and insider-trading disclosures
 // (promoters, directors, key staff) whenever NSE's feed returns them.
@@ -34,7 +35,7 @@ export default function Insiders({ openStock }) {
     return a;
   }, { buy: 0, sell: 0 });
   const t = totals(d[tab] || []);
-  const stock = (r) => <button type="button" className="linkish strong" onClick={() => openStock(r.symbol)}>{r.symbol}</button>;
+  const stock = (r) => <button type="button" className="linkish strong" onClick={() => openStock(r.symbol)}><WithLogo symbol={r.symbol} size={20}>{r.symbol}</WithLogo></button>;
   const dealColumns = [
     { key: "date", label: "Date" },
     { key: "symbol", label: "Symbol", render: stock },

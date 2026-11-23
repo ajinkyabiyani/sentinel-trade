@@ -74,7 +74,7 @@ export default function GttDialog({ prefill, onClose, go }) {
           <p className="muted gtt-why">
             {mode === "protect"
               ? "A normal stop-loss order is cancelled at 15:30. A GTT stays on Kite for up to a year: whichever of stop or target trades first sells, and the other leg is cancelled. With two targets you get two GTTs, each for half the shares."
-              : "Waits at the Darvas trigger and buys on whichever day price trades through it, with a limit 0.5% above so it doesn't chase a spike. Add a stop-loss GTT once it fills."}
+              : "Waits at your trigger and buys on whichever day price trades through it, with a limit 0.5% above so it doesn't chase a spike. Add a stop-loss GTT once it fills."}
           </p>
           {ltp && <p className="muted">Last price {num(ltp)}{prefill.entry ? ` · plan entry ${num(prefill.entry)}` : ""}</p>}
           <div className="ticket-grid three">

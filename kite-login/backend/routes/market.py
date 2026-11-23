@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from typing import Literal
+import csv
 import re
 import threading
 import time
@@ -11,7 +12,6 @@ from fastapi import Depends, HTTPException, Query
 from kiteconnect import KiteConnect
 
 from core import IST, REPORTS_DIR, _kite_call, app, kite_client, log, store
-from routes.darvas import _read_report
 from strategies import momentum
 from strategies import regime
 
@@ -230,12 +230,39 @@ _movers_cache: tuple[float, dict] | None = None
 
 def _constituents() -> dict[str, dict]:
     out: dict[str, dict] = {}
-    for r in _read_report(REPORTS_DIR / "index_constituents.csv"):
-        s = r.get("symbol")
-        if s and r.get("nse_token"):
-            row = out.setdefault(str(s), {"name": r.get("name"), "industry": r.get("industry"), "indices": []})
-            row["indices"].append(r.get("index"))
+    path = REPORTS_DIR / "index_constituents.csv"
+    if not path.exists():
+        return out
+    with path.open(encoding="utf-8-sig", newline="") as fh:
+        for r in csv.DictReader(fh):
+            s = r.get("symbol")
+            if s and r.get("nse_token"):
+                row = out.setdefault(s, {"name": r.get("name"), "industry": r.get("industry"), "indices": []})
+                row["indices"].append(r.get("index"))
     return out
+
+
+# Which tracked stocks belong to each sector index on the Home page, by NSE industry (Banks and PSU Banks by name).
+SECTOR_INDUSTRIES = {
+    "Financial Services": ("Financial Services",), "IT": ("Information Technology",), "Auto": ("Automobile and Auto Components",),
+    "Pharma": ("Healthcare",), "FMCG": ("Fast Moving Consumer Goods",), "Metals": ("Metals & Mining",),
+    "Energy": ("Oil Gas & Consumable Fuels", "Power"), "Realty": ("Realty",),
+    "Infrastructure": ("Construction", "Construction Materials", "Capital Goods", "Power", "Telecommunication"),
+}
+PSU_BANKS = {"SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB", "BANKINDIA", "MAHABANK", "IOB", "UCOBANK", "CENTRALBK", "PSB"}
+
+
+def sector_groups(names: dict[str, dict]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {label: [] for label in [*SECTOR_INDUSTRIES, "Banks", "PSU Banks"]}
+    for sym, info in names.items():
+        for label, inds in SECTOR_INDUSTRIES.items():
+            if info.get("industry") in inds:
+                out[label].append(sym)
+        if "NIFTY BANK" in (info.get("indices") or []) or (info.get("industry") == "Financial Services" and "BANK" in sym and sym != "BANKBEES"):
+            out["Banks"].append(sym)
+        if sym in PSU_BANKS:
+            out["PSU Banks"].append(sym)
+    return {k: sorted(set(v)) for k, v in out.items() if v}
 
 
 @app.get("/api/market/movers")
@@ -266,6 +293,7 @@ def market_movers(kite: KiteConnect = Depends(kite_client)):
                        "total": len(rows)},
            # previous close and last price per stock, so the dashboard can recount breadth on live ticks
            "universe": {r["symbol"]: [r["prev_close"], r["last"]] for r in rows},
+           "groups": sector_groups(names),
            "asof": datetime.now(IST).isoformat(timespec="seconds")}
     _movers_cache = (time.time(), out)
     return out

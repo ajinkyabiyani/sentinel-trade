@@ -61,8 +61,7 @@
 
 /* Portfolio: the strategy cards share the row however many desks there are; the risk panel fits the window. */
 .pf-strats { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-.pd-risk { max-height: calc(100vh - 100px); overflow: hidden auto; }
-@media (max-width: 1150px) { .pd-risk { position: static; max-height: none; } }
+
 @media (max-width: 760px) { .pf-strats { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); } }
 
 /* Trade: the side column is as tall as the ticket and scrolls inside itself. */
@@ -73,3 +72,11 @@
 
 /* Home: the headline numbers stay on one line. */
 .cc-stats b { font-size: 1.2rem; }
+
+/* Strategy and Backtest details */
+.il-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 900px) { .il-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Option breakout pages */
+

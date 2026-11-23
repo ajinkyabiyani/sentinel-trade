@@ -1,340 +1,294 @@
 import { api } from "../lib/api.js";
-import { QUADRANT_TONE, Sparkline } from "../components/charts.jsx";
-import { inr, num, REGIME_TONE, rupee, shortSector, signed, tone } from "../lib/format.js";
+import { Sparkline } from "../components/charts.jsx";
+import { num, REGIME_TONE, signed, tone } from "../lib/format.js";
 import { NewsList } from "../components/news.jsx";
 import { useTicks } from "../lib/ticks.js";
-import { Badge, ErrorNote, Spinner, useLoad } from "../components/ui.jsx";
+import { ErrorNote, Spinner, useLoad } from "../components/ui.jsx";
 import { Logo } from "./Insight.jsx";
-import { combinedCurve, liveDesks } from "./Paper.jsx";
-import { HeatLegend, MoodGauge, NormalizedChart, SectorBars, SourceNote, Treemap, useStocks } from "./terminal/shared.jsx";
+import { NormalizedChart, SourceNote } from "./terminal/shared.jsx";
+import SectorPanel from "../components/SectorPanel.jsx";
+import { WithLogo } from "../components/Logo.jsx";
+import { marketStatus } from "../components/live.jsx";
+import ConfidenceWins from "../components/ConfidenceWins.jsx";
 
-// Workspace: the day in four numbers, live index / commodity cards, the strategies' top calls beside market news, then
-// the combined paper equity curve (₹1 lakh per strategy) beside sector strength. Prices, breadth and P&L move on ticks.
+// Home: the market's pulse in one card (status, trend, breadth, mood, view, VIX), one ribbon of index and commodity tiles on live
+// ticks, then the main column (index performance, sectors, pre-open) beside a rail (mood, money flows, what is coming up with the
+// IPO Agent's signals, news). The confidence wins table closes the page.
 const HEADLINE = ["NSE:NIFTY 50", "BSE:SENSEX", "NSE:NIFTY BANK", "NSE:NIFTY MIDCAP 100"];
 const SHORT = { SENSEX: "Sensex", "NIFTY 50": "Nifty 50", "NIFTY BANK": "Nifty Bank", "NIFTY MIDCAP 100": "Midcap 100", "NIFTY SMLCAP 100": "Smallcap 100" };
 const TILE_MARK = { GOLD: { text: "Au", hue: 42 }, SILVER: { text: "Ag", hue: 210 }, USDINR: { text: "$", hue: 160 } };
+const NSE = { id: "NSE", pre: 540, open: 555, close: 930 };
+const istToday = () => new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60_000).toISOString().slice(0, 10);
+const shortDate = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+const daysTo = (d) => Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${istToday()}T00:00:00Z`)) / 86_400_000);
 
 function IndexTile({ m, live, onOpen }) {
-  if (!m.name) return <div className="card idx-tile"><Spinner small /></div>;
+  if (!m.name) return <div className="card hx-tile"><Spinner small /></div>;
   const t = live.ticks[m.key];
   const last = t?.last_price ?? m.last;
-  const chg = t?.change ?? m.change;
   const pc = t?.change_pct ?? m.change_pct;
   const series = (m.series || []).slice(-40).map((p) => p[1]);
   if (t?.last_price && series.length) series[series.length - 1] = t.last_price;
   const fx = m.exchange === "CDS";
   const mark = TILE_MARK[m.name];
   return (
-    <button type="button" className={`card idx-tile ${tone(chg) || "flat"}${m.kind === "commodity" ? " commodity" : ""}`} onClick={() => onOpen(m.symbol || m.name, m.exchange)}
+    <button type="button" className={`card hx-tile ${tone(pc) || "flat"}`} onClick={() => onOpen(m.symbol || m.name, m.exchange)}
       title={m.contract ? `${m.contract} (front-month future, expires ${m.expiry}) · ${m.unit}` : undefined}>
-      <span className="idx-id">
-        <Logo symbol={m.name} size={28} text={mark?.text} hue={mark?.hue} />
-        <span>
-          <small>{m.exchange} · {m.contract || m.name}</small>
-          <b>{m.label || SHORT[m.name] || m.name}</b>
-          {m.regime && <em className={`idx-regime ${REGIME_TONE[m.regime.regime]}`} title={`${m.regime.note} Score ${signed(m.regime.score, 0)}, ${m.regime.days} days in this regime.`}>{m.regime.regime}</em>}
-        </span>
-        {t && live.live && <span className="live-tag">LIVE</span>}
+      <span className="hx-tile-top">
+        <Logo symbol={m.name} size={20} text={mark?.text} hue={mark?.hue} />
+        <b>{m.label || SHORT[m.name] || m.name}</b>
       </span>
-      <span className="idx-bottom">
-        <span>
-          <b key={last} className={`idx-px ${t ? (t.change >= 0 ? "flash-up" : "flash-down") : ""}`}>{num(last, fx ? 4 : 2)}</b>
-          <span className="idx-delta">
-            <small className={tone(chg)}>{signed(chg, fx ? 4 : 2)}</small>
-            <span className={`pill-chg ${tone(pc)}`}>{signed(pc)}%</span>
-          </span>
-        </span>
-        <Sparkline values={series} height={46} />
+      <b key={last} className={`hx-tile-last ${t ? (t.change >= 0 ? "flash-up" : "flash-down") : ""}`}>{num(last, fx ? 4 : last >= 10000 ? 0 : 2)}</b>
+      <span className="hx-tile-px">
+        <span className={`hx-chg ${tone(pc)}`}>{signed(pc)}%</span>
+        {m.regime && <em className={`hx-regime ${REGIME_TONE[m.regime.regime]}`} title={`${m.regime.regime}: ${m.regime.note}`}>{({ Uptrend: "▲ Up", Downtrend: "▼ Down", "Range-bound": "◆ Range" })[m.regime.regime] || m.regime.regime}</em>}
       </span>
+      <span className="hx-tile-spark"><Sparkline values={series} height={30} /></span>
     </button>
   );
 }
 
-function StatStrip({ darvas, indices, movers, live, breadthTicks, mv, mvError, go }) {
-  const n = darvas?.indices?.find((r) => r.index === "NIFTY 50");
-  const trend = !n ? null : n.above_50dma && n.above_200dma ? ["Uptrend", "up", "above its 50 and 200-day averages"]
-    : !n.above_50dma && !n.above_200dma ? ["Downtrend", "down", "below its 50 and 200-day averages"]
-      : n.above_200dma ? ["Pullback", "amber", "above the 200-day, below the 50-day"] : ["Recovering", "amber", "above the 50-day, below the 200-day"];
-  // breadth recounted on every tick of the index stocks: up / down against the previous close
+function Pulse({ indices, movers, live, breadthTicks, mv, mood, idx, go }) {
+  const st = marketStatus(NSE);
+  const n = mv?.indices?.find((x) => x.key === "NSE:NIFTY 50")?.regime;
   const uni = movers?.universe;
   const b = uni ? Object.entries(uni).reduce((a, [s, [prev, last]]) => {
     const px = breadthTicks[`NSE:${s}`]?.last_price ?? last;
     if (px > prev) a.up += 1; else if (px < prev) a.down += 1;
     return a;
   }, { up: 0, down: 0, total: Object.keys(uni).length }) : movers?.breadth;
-  const secs = [...(darvas?.sectors || [])].sort((a, b2) => b2.rs_ratio - a.rs_ratio);
-  // a sector is "leading" only in the Leading quadrant (RS ratio and RS momentum both above 100); when none is, the
-  // card says so and names the strongest sector (highest RS ratio) and the fastest riser (best momentum, Improving)
-  const leader = secs.find((s) => s.quadrant === "Leading");
-  const lead = leader || secs[0];
-  const riser = !leader ? [...secs].filter((s) => s.quadrant === "Improving").sort((a, b2) => b2.rs_momentum - a.rs_momentum)[0] : null;
   const nifty = indices?.find((m) => m.key === "NSE:NIFTY 50");
   const niftyPct = live.ticks["NSE:NIFTY 50"]?.change_pct ?? nifty?.change_pct;
+  const vix = (idx?.snapshot || []).find((x) => x.label === "INDIA VIX");
+  const vixPx = vix ? (live.ticks[vix.key]?.last_price ?? vix.last) : null;
+  const vixChg = vix && vix.prev && vixPx ? (vixPx / vix.prev - 1) * 100 : null;
+  const upShare = b && b.up + b.down ? (b.up / (b.up + b.down)) * 100 : 50;
   return (
-    <section className="cc-stats">
-      <div>
-        <NavGlyph d="M3 17l6-6 4 4 8-8M15 7h6v6" />
-        <span>
-          <small>Market trend</small>
-          <b className={trend?.[1] || ""}>{trend?.[0] || "–"}</b>
-          <em className="muted">Nifty 50 {trend?.[2] || ""}{niftyPct != null ? ` · ${signed(niftyPct)}% today` : ""}</em>
-        </span>
+    <section className="card hx-pulse" aria-label="Market pulse">
+      <div className={`hx-status ${st.state}`}>
+        <span className="hx-k">NSE</span>
+        <b><i />{st.text}</b>
+        <small>{st.sub}</small>
       </div>
       <div>
-        <NavGlyph d="M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M10 10a4 4 0 100-8 4 4 0 000 8zM21 20v-2a4 4 0 00-3-3.9M16 2.1a4 4 0 010 7.8" />
-        <span>
-          <small>Breadth</small>
-          <b>{b ? <><span className="up">{b.up} adv</span> <span className="muted">·</span> <span className="down">{b.down} dec</span></> : "–"}</b>
-          <em className="muted">{b ? `of ${b.total} index stocks · A/D ${b.down ? num(b.up / b.down, 2) : "–"}` : "needs a Kite session"}</em>
-        </span>
+        <span className="hx-k">Market trend</span>
+        <b className={REGIME_TONE[n?.regime] || ""}>{n?.regime || "–"}</b>
+        <small>Nifty 50 {niftyPct != null ? <span className={tone(niftyPct)}>{signed(niftyPct)}%</span> : "–"} today</small>
+      </div>
+      <div className="hx-breadth" title={b ? `${b.up} advancing, ${b.down} declining of ${b.total} index stocks` : "needs a Kite session"}>
+        <span className="hx-k">Breadth</span>
+        <b><span className="up">{b ? b.up : "–"}</span><span className="hx-sep">/</span><span className="down">{b ? b.down : "–"}</span></b>
+        <span className="hx-split"><span className="up" style={{ width: `${upShare}%` }} /><span className="down" style={{ width: `${100 - upShare}%` }} /></span>
       </div>
       <div>
-        <NavGlyph d="M5 20V10M10 20V4M15 20v-8M20 20v-5" />
-        <span>
-          <small>{!lead || leader ? "Leading sector" : "No sector leading · strongest"}</small>
-          <b className={lead ? QUADRANT_TONE[lead.quadrant] : ""}>{lead ? shortSector(lead.sector) : "–"}</b>
-          <em className="muted">
-            {lead ? `${lead.quadrant} · RS ${num(lead.rs_ratio, 1)} · 1M ${signed(lead.chg_1m_pct)}%` : "after the daily scan"}
-            {riser ? ` · rising: ${shortSector(riser.sector)}` : ""}
-          </em>
-        </span>
+        <span className="hx-k">Mood</span>
+        <b>{mood?.score ?? "–"}<small className="hx-mood">{mood?.label || ""}</small></b>
+        <span className="hx-mood-track"><span style={{ left: `${mood?.score ?? 50}%` }} /></span>
       </div>
-      <button type="button" className="cc-kpi-btn" onClick={() => go("regime")} title={mv?.reasons?.join("\n")}>
-        <NavGlyph d="M12 3a9 9 0 100 18 9 9 0 000-18zM15.5 8.5l-2 5-5 2 2-5z" />
-        <span>
-          <small>Market view</small>
-          <b className={mv?.tone || ""}>{mv?.view || "–"}{mv?.score != null ? <small className="cc-score"> {signed(mv.score, 0)}</small> : null}</b>
-          <em className="muted">{mv?.summary || (mvError ? "needs a Kite session" : "loading")}</em>
-        </span>
+      <button type="button" onClick={() => go("regime")} title={[mv?.summary, ...(mv?.reasons || [])].filter(Boolean).join("\n")}>
+        <span className="hx-k">Market view</span>
+        <b className={mv?.tone || ""}>{mv?.view || "–"}{mv?.score != null && <small> {signed(mv.score, 0)}</small>}</b>
+        <small className="hx-ellipsis">{mv?.summary || "loading"}</small>
       </button>
+      <div>
+        <span className="hx-k">India VIX</span>
+        <b>{vixPx == null ? "–" : num(vixPx, 2)}</b>
+        <small>{vixChg == null ? "–" : <span className={tone(-vixChg)}>{signed(vixChg)}%</span>} today</small>
+      </div>
     </section>
   );
 }
 
-function NavGlyph({ d }) {
+function Flows({ flows }) {
+  const rows = flows?.rows || [];
+  const max = Math.max(1, ...rows.map((f) => Math.abs(Number(f.netValue) || 0)));
   return (
-    <svg className="cc-glyph" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
+    <section className="card hx-card">
+      <header className="hx-head"><h3>Money flows</h3><span className="muted small">{rows[0]?.date ? `cash market · ${rows[0].date}` : "cash market"}</span></header>
+      {rows.length ? rows.map((f) => {
+        const v = Number(f.netValue) || 0;
+        return (
+          <div key={f.category} className="hx-flow">
+            <span>{f.category === "FII/FPI" ? "Foreign (FII)" : f.category === "DII" ? "Domestic (DII)" : f.category}</span>
+            <span className="hx-flow-bar"><span className={v >= 0 ? "pos" : "neg"} style={{ width: `${(Math.abs(v) / max) * 50}%` }} /></span>
+            <b className={tone(v)}>{v >= 0 ? "+" : "−"}₹{num(Math.abs(v), 0)} cr</b>
+          </div>
+        );
+      }) : <p className="muted small">{flows ? "No figures yet." : <Spinner small />}</p>}
+      <p className="hx-note">Net buying minus selling in the cash market, from NSE. Bought is right of centre.</p>
+    </section>
   );
 }
 
-// The strategies' top calls only: at most two each, best first (a live or finished trade, then an order about to
-// trigger). ORB from its live engine, Darvas from the latest scan (fresh breakouts, then the nearest
-// buy-ready boxes passing every filter).
-const TOP = 2;
-function topCalls(orb, darvas) {
-  const out = [];
-  const ot = [...(orb?.trades || [])].sort((a, b) => (a.status === "open" ? -1 : 0) - (b.status === "open" ? -1 : 0) || b.net - a.net);
-  for (const t of ot.slice(0, TOP)) {
-    out.push({ strat: "ORB", symbol: t.symbol, side: "LONG", to: "orb", pnl: t.net, open: t.status === "open",
-      label: t.status === "open" ? "Open" : t.exit_reason || "Closed", tone: t.status === "open" ? "buy" : t.net >= 0 ? "buy" : "sell",
-      note: `entry ${num(t.entry_ref)} · stop ${num(t.sl)}${t.target ? ` · target ${num(t.target)}` : ""}` });
-  }
-  for (const s of (orb?.signals || []).filter((x) => x.status === "pending")) {
-    if (out.filter((c) => c.strat === "ORB").length >= TOP || out.some((c) => c.symbol === s.symbol)) continue;
-    out.push({ strat: "ORB", symbol: s.symbol, side: "LONG", to: "orb", label: "Signal", tone: "buy", note: "breakout signal, enters on the next bar" });
-  }
-  const fresh = (darvas?.breakouts || []).filter((r) => r.signal === "BUY" && r.filters === "PASS" && r.bars_ago <= 1)
-    .map((r) => ({ strat: "Darvas", symbol: r.symbol, side: "LONG", to: "darvas", label: "Breakout", tone: "buy",
-      note: `entry ${num(r.entry || r.last_close)} · stop ${num(r.stop)}` }));
-  const near = [...(darvas?.ready || [])].filter((r) => r.filters === "PASS").sort((a, b) => a.distance_pct - b.distance_pct)
-    .map((r) => ({ strat: "Darvas", symbol: r.symbol, side: "LONG", to: "darvas", label: "Buy-ready", tone: "",
-      note: `trigger ${num(r.trigger)} · ${num(r.distance_pct)}% away` }));
-  out.push(...[...fresh, ...near].slice(0, TOP));
-  return out;
-}
-
-function Signals({ orb, darvas, openStock, go }) {
-  const calls = topCalls(orb, darvas);
-  const { ticks } = useTicks(calls.map((c) => `NSE:${c.symbol}`));
+function MoodCard({ mood }) {
+  if (!mood?.parts) return <section className="card hx-card"><header className="hx-head"><h3>Market mood</h3></header><Spinner small /></section>;
   return (
-    <section className="card ws-signals">
-      <header className="card-head">
-        <div>
-          <h3>Top strategy calls</h3>
-          <span className="muted small">the best {TOP} from each of ORB and Darvas · live prices</span>
-        </div>
-        <button type="button" className="link-accent" onClick={() => go("orb")}>All signals →</button>
-      </header>
-      <ul className="sig-list">
-        {calls.map((c) => {
-          const tk = ticks[`NSE:${c.symbol}`];
-          return (
-            <li key={c.strat + c.symbol}>
-              <button type="button" onClick={() => openStock(c.symbol)}>
-                <Logo symbol={c.symbol} size={28} />
-                <span>
-                  <b>{c.symbol} <small className="muted">· {c.strat}{c.side === "SHORT" ? " · short" : ""}</small></b>
-                  <small className="muted">{c.note}{c.pnl != null ? <> · P&L <span className={tone(c.pnl)}>{rupee(c.pnl)}</span></> : ""}</small>
-                </span>
-                <span className="sig-right">
-                  {tk && <b key={tk.last_price} className={`small ${tk.change >= 0 ? "flash-up" : "flash-down"}`}>{num(tk.last_price)} <span className={tone(tk.change_pct)}>{signed(tk.change_pct)}%</span></b>}
-                  <Badge tone={c.tone}>{c.label}</Badge>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-        {!calls.length && <li className="muted small">No strategy has a call right now.</li>}
+    <section className="card hx-card">
+      <header className="hx-head"><h3>Market mood</h3><span className="muted small" title="This app's own measure, not a published index">0 to 100, calculated here</span></header>
+      <div className="hx-mood-big"><b>{mood.score}</b><span>{mood.label}</span></div>
+      <ul className="hx-parts">
+        {mood.parts.map((p) => (
+          <li key={p.name} title={p.note}>
+            <span>{p.name}</span>
+            <span className="hx-part-bar"><span style={{ width: `${p.score}%` }} className={p.score >= 60 ? "hi" : p.score <= 40 ? "lo" : ""} /></span>
+            <b>{p.score}</b>
+          </li>
+        ))}
       </ul>
     </section>
   );
 }
 
-// Paper equity of the three strategies together (₹1 lakh each), today's point marked live.
-function EquityCurve({ pfData, pf, go }) {
-  const curve = pfData ? combinedCurve(pf.desks) : [];
-  const t0 = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
-  const pts = curve.length ? [...curve.filter((c) => c[0] === "start" || c[0] < t0), [t0, pf.equity]] : [];
-  const chg = pf.equity - pf.capital;
-  const short = (d) => (d === "start" ? "start" : new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" }));
+// A number and its unit, always: "1 day", "18 days"; today is the one word, set small enough to fit the tile.
+function Countdown({ n }) {
+  if (n <= 0) return <span className="hx-when"><b className="word">Today</b></span>;
+  return <span className="hx-when"><b>{n}</b><small>{n === 1 ? "day" : "days"}</small></span>;
+}
+
+function ComingUp({ cal, ipo, go }) {
+  const today = istToday();
+  const eco = (cal?.economic || []).filter((e) => e.date >= today && e.group !== "Flows").sort((a, b) => a.date.localeCompare(b.date));
+  const nextOf = (g) => eco.find((e) => e.group === g);
+  const items = [nextOf("F&O expiry"), nextOf("RBI"), nextOf("Holiday")].filter(Boolean);
+  const results = (cal?.earnings || []).filter((e) => e.date >= today);
+  const resDay = results.map((e) => e.date).sort()[0];
+  const ipos = (ipo?.active || []).slice(0, 4);
   return (
-    <section className="card ws-equity">
-      <header className="card-head">
-        <div>
-          <h3>Equity curve</h3>
-          <span className="muted small">ORB + Darvas paper desks · {inr(pf.capital, 0)} · after charges</span>
-        </div>
-        <button type="button" className="link-accent" onClick={() => go("paper")}>Portfolio →</button>
-      </header>
-      {!pfData ? <div className="chart-empty" style={{ height: 160 }}><Spinner /></div> : (
-        <>
-          <div className="row eq-head">
-            <b className="eq-now">{inr(pf.equity, 0)}</b>
-            <span className={`pill-chg ${tone(chg)}`}>{rupee(chg)} · {signed(pf.capital ? (chg / pf.capital) * 100 : 0)}%</span>
-          </div>
-          <div className="paper-curve">
-            <Sparkline values={pts.map((c) => c[1])} height={150} />
-            <div className="paper-curve-axis">{pts.map((c) => <span key={c[0]}>{short(c[0])}</span>)}</div>
-          </div>
-        </>
+    <section className="card hx-card">
+      <header className="hx-head"><h3>Coming up</h3><button type="button" className="link-accent" onClick={() => go("calendar")}>Calendar →</button></header>
+      {!cal ? <Spinner small /> : (
+        <ul className="hx-events">
+          {items.map((e) => (
+            <li key={e.date + e.event} className={e.group === "Holiday" ? "hol" : e.group === "RBI" ? "rbi" : "exp"}>
+              <Countdown n={daysTo(e.date)} />
+              <span><b>{e.group === "Holiday" ? "Market holiday" : e.event}</b><small>{shortDate(e.date)}{e.group === "Holiday" ? ` · ${e.event.replace(/^Market holiday:?\s*/i, "")}` : ""}</small></span>
+            </li>
+          ))}
+          {resDay && (
+            <li className="res">
+              <span className="hx-when"><b>{results.filter((r) => r.date === resDay).length}</b><small>{results.filter((r) => r.date === resDay).length === 1 ? "result" : "results"}</small></span>
+              <span><b>Results on {shortDate(resDay)}</b><small>{results.filter((r) => r.date === resDay).slice(0, 4).map((r) => r.symbol).join(", ")}</small></span>
+            </li>
+          )}
+        </ul>
       )}
+      <div className="hx-ipo-head"><span className="hx-k">IPO Agent</span><button type="button" className="link-accent" onClick={() => go("insiders")}>All IPOs →</button></div>
+      {ipos.length ? (
+        <ul className="hx-ipos">
+          {ipos.map((a) => (
+            <li key={a.id}>
+              <button type="button" onClick={() => go("insiders")}>
+                <span><b>{a.name}</b><small>{a.board} · {a.status_label}{a.open ? ` · opens ${shortDate(a.open)}` : ""}</small></span>
+                <span className="hx-ipo-r">
+                  <em className={`sig-${(a.signal || "").split(" ")[0].toLowerCase()}`}>{a.signal}</em>
+                  {a.odds && <small>{num(a.odds.win_pct, 0)}% listed up</small>}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="muted small">{ipo ? "No IPO in the pipeline right now." : "Reading IPOs…"}</p>}
+    </section>
+  );
+}
+
+// Today's biggest gainers and losers among the tracked index stocks, re-ranked on live ticks.
+function TopMovers({ movers, ticks, openStock }) {
+  const rows = [...(movers?.gainers || []), ...(movers?.losers || [])].map((r) => {
+    const px = ticks[`NSE:${r.symbol}`]?.last_price ?? r.last;
+    return { ...r, px, pc: r.prev_close ? (px / r.prev_close - 1) * 100 : r.change_pct };
+  });
+  const uniq = Object.values(Object.fromEntries(rows.map((r) => [r.symbol, r])));
+  const up = uniq.filter((r) => r.pc > 0).sort((a, b) => b.pc - a.pc).slice(0, 5);
+  const down = uniq.filter((r) => r.pc < 0).sort((a, b) => a.pc - b.pc).slice(0, 5);
+  const max = Math.max(0.5, ...uniq.map((r) => Math.abs(r.pc)));
+  const col = (list, title, cls) => (
+    <div className="hx-mv-col">
+      <span className="hx-k">{title}</span>
+      {list.length ? list.map((r) => (
+        <button key={r.symbol} type="button" className="hx-mv" onClick={() => openStock(r.symbol)} title={r.name || r.symbol}>
+          <span className="hx-mv-id"><Logo symbol={r.symbol} size={22} /><span><b>{r.symbol}</b><small>{num(r.px)}</small></span></span>
+          <span className="hx-mv-bar"><span className={cls} style={{ width: `${(Math.abs(r.pc) / max) * 100}%` }} /></span>
+          <b className={tone(r.pc)}>{signed(r.pc)}%</b>
+        </button>
+      )) : <p className="muted small">None yet.</p>}
+    </div>
+  );
+  return (
+    <section className="card hx-card hx-movers">
+      <header className="hx-head"><h3>Top movers</h3><span className="muted small">Nifty 50, Midcap 100 and Smallcap 100 stocks · live</span></header>
+      {!movers ? <Spinner small /> : <div className="hx-mv-grid">{col(up, "Gainers", "up")}{col(down, "Losers", "down")}</div>}
     </section>
   );
 }
 
 function PreOpen({ data, openStock }) {
   return (
-    <section className="card tt-card">
-      <header className="card-head"><h3>Biggest pre-open volume</h3><SourceNote status={data} source="NSE" /></header>
-      <div className="tt-list-head"><span>Stock</span><span>Change</span><span>Price</span></div>
-      <ul className="tt-list">
-        {(data?.rows || []).map((r) => (
+    <section className="card hx-card">
+      <header className="hx-head"><h3>Biggest pre-open volume</h3><SourceNote status={data} source="NSE" /></header>
+      <ul className="hx-rows">
+        {(data?.rows || []).slice(0, 7).map((r) => (
           <li key={r.symbol}>
-            <button type="button" onClick={() => openStock(r.symbol)}><b>{r.symbol}</b><small>{r.name}</small></button>
-            <span className={tone(r.chg)}>{signed(r.chg)}%</span>
+            <button type="button" onClick={() => openStock(r.symbol)}><WithLogo symbol={r.symbol} size={20}><b>{r.symbol}</b></WithLogo></button>
             <span>{num(r.price)}</span>
+            <span className={`hx-chg ${tone(r.chg)}`}>{signed(r.chg)}%</span>
           </li>
         ))}
         {data && !data.rows.length && <li className="muted small">No pre-open data yet today.</li>}
       </ul>
-      {!data && <Spinner />}
+      {!data && <Spinner small />}
     </section>
   );
 }
 
-function Snapshot({ market, live, indices, flows }) {
-  const rows = [
-    ...(indices?.snapshot || []).filter((x) => ["INDIA VIX", "Nifty Smallcap 100"].includes(x.label)).map((x) => ({ key: x.key, label: x.label, last: x.last, prev: x.prev })),
-    ...(market || []).filter((m) => m.kind === "commodity" || m.exchange === "CDS").map((m) => ({ key: m.key, label: m.label || m.name, last: m.last, prev: m.last != null && m.change != null ? m.last - m.change : null, fx: m.exchange === "CDS" })),
-  ];
-  return (
-    <section className="card tt-card">
-      <header className="card-head"><h3>Market snapshot</h3></header>
-      <div className="tt-list-head"><span>Instrument</span><span>Change</span><span>Value</span></div>
-      <ul className="tt-list">
-        {rows.map((r) => {
-          const px = live.ticks[r.key]?.last_price ?? r.last;
-          const chg = r.prev && px ? (px / r.prev - 1) * 100 : null;
-          return <li key={r.key}><span>{r.label}</span><span className={tone(chg)}>{chg == null ? "–" : `${signed(chg)}%`}</span><b key={px}>{num(px, r.fx ? 4 : 2)}</b></li>;
-        })}
-        {(flows?.rows || []).map((f) => (
-          <li key={f.category}><span>{f.category} net cash <small>{f.date}</small></span><span /><b className={tone(Number(f.netValue))}>₹{num(Number(f.netValue), 0)} Cr</b></li>
-        ))}
-      </ul>
-    </section>
-  );
-}
 
-function Upcoming({ cal, go }) {
-  const today = new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60_000).toISOString().slice(0, 10);
-  const events = (cal?.economic || []).filter((e) => e.date >= today && e.group !== "Flows").sort((a, b) => a.date.localeCompare(b.date)).slice(0, 7);
-  const upcoming = (cal?.earnings || []).filter((e) => e.date >= today);
-  const nextDay = upcoming.map((e) => e.date).sort()[0];
-  const results = upcoming.filter((e) => e.date === nextDay);
-  const label = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { timeZone: "UTC", day: "numeric", month: "short" });
-  return (
-    <section className="card tt-card">
-      <header className="card-head"><h3>Upcoming</h3><button type="button" className="link-accent" onClick={() => go("calendar")}>Calendar →</button></header>
-      {!cal ? <Spinner /> : (
-        <ul className="tt-list">
-          {nextDay && <li><span><b>{results.length}</b> companies with results board meetings <small>{results.slice(0, 4).map((r) => r.symbol).join(", ")}</small></span><span /><span>{label(nextDay)}</span></li>}
-          {events.map((e) => <li key={e.date + e.event}><span>{e.event}</span><span /><span>{label(e.date)}</span></li>)}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-export default function Home({ go, openStock, darvas, orb, news }) {
+export default function Home({ go, openStock, news }) {
   const market = useLoad(api.marketIndices, [], 120_000);
   const movers = useLoad(api.movers, [], 30_000);
-  const port = useLoad(api.portfolio, [], 20_000);
   const mv = useLoad(api.regimeMarket, [], 60_000);
   const live = useTicks([...(market.data || []).map((m) => m.key), "NSE:NIFTY 50"]);
   const breadth = useTicks(Object.keys(movers.data?.universe || {}).map((s) => `NSE:${s}`));
-  const pfTicks = useTicks((port.data?.desks || []).flatMap((d) => (d.open || []).map((t) => `NSE:${t.symbol}`)));
-  const pf = liveDesks(port.data, pfTicks.ticks);
-  const stocks = useStocks();
   const idx = useLoad(api.terminalIndices, [], 30_000);
   const sectorTicks = useTicks([...(idx.data?.sectors || []).map((x) => x.key), ...(idx.data?.snapshot || []).map((x) => x.key)]);
   const mood = useLoad(api.terminalMood, [], 60_000);
   const preopen = useLoad(api.terminalPreopen, [], 120_000);
   const flows = useLoad(api.terminalFlows, [], 900_000);
   const cal = useLoad(api.terminalCalendar, [], 900_000);
+  const ipo = useLoad(api.ipoAgent, [], 300_000);
   const headline = (market.data || []).filter((m) => HEADLINE.includes(m.key));
-  const snapshotLive = { ticks: { ...live.ticks, ...sectorTicks.ticks } };
-  // read top-down: the day in numbers, headline indices, today's market in tables, the heatmap, then strategies and news
+  const commodities = (market.data || []).filter((m) => m.kind === "commodity");
+  const tiles = [...headline, ...commodities];
+  const allTicks = { ticks: { ...live.ticks, ...sectorTicks.ticks } };
   return (
-    <div className="cc ws tt-page fade-in">
-      <StatStrip darvas={darvas} indices={market.data} movers={movers.data} live={live} breadthTicks={breadth.ticks} mv={mv.data} mvError={mv.error} go={go} />
-      <div className="tt-headline">
-        {(headline.length ? headline : Array.from({ length: 4 }, (_, i) => ({ key: i }))).map((m) => <IndexTile key={m.key} m={m} live={live} onOpen={openStock} />)}
+    <div className="hx tt-page fade-in">
+      <Pulse indices={market.data} movers={movers.data} live={live} breadthTicks={breadth.ticks} mv={mv.data} mood={mood.data} idx={idx.data} go={go} />
+      <div className="hx-ribbon">
+        {(tiles.length ? tiles : Array.from({ length: 7 }, (_, i) => ({ key: i }))).map((m) => <IndexTile key={m.key} m={m} live={allTicks} onOpen={openStock} />)}
       </div>
       <ErrorNote error={market.error} />
-      <div className="tt-grid3">
-        <PreOpen data={preopen.data} openStock={openStock} />
-        <MoodGauge mood={mood.data} />
-        <SectorBars sectors={idx.data?.sectors} ticks={sectorTicks.ticks} />
-        <Snapshot market={market.data} live={snapshotLive} indices={idx.data} flows={flows.data} />
-        <div className="tt-span2"><NormalizedChart /></div>
+      <div className="hx-main">
+        <div className="hx-col">
+          <SectorPanel sectors={idx.data?.sectors} ticks={sectorTicks.ticks} movers={movers.data} stockTicks={breadth.ticks} openStock={openStock} go={go} />
+          <div className="hx-pair">
+            <PreOpen data={preopen.data} openStock={openStock} />
+            <TopMovers movers={movers.data} ticks={breadth.ticks} openStock={openStock} />
+          </div>
+          <section className="card hx-card hx-news">
+            <header className="hx-head">
+              <div className="row"><h3>Market news</h3><span className="live-chip"><span className="live-dot" /> Live</span></div>
+              <button type="button" className="link-accent" onClick={() => go("news")}>All news →</button>
+            </header>
+            <div className="hx-news-body"><NewsList news={news} source="all" limit={14} compact /></div>
+          </section>
+        </div>
+        <aside className="hx-rail">
+          <ComingUp cal={cal.data} ipo={ipo.data} go={go} />
+          <NormalizedChart compact />
+          <MoodCard mood={mood.data} />
+          <Flows flows={flows.data} />
+        </aside>
       </div>
-      <div className="tt-grid2">
-        <Upcoming cal={cal.data} go={go} />
-        <section className="card tt-card">
-          <header className="card-head">
-            <h3>Heatmap</h3>
-            <button type="button" className="link-accent" onClick={() => go("heatmap")}>Full heatmap →</button>
-          </header>
-          {stocks.loading ? <Spinner /> : <Treemap rows={stocks.rows} onPick={openStock} height={300} compact />}
-          <footer className="tt-foot"><HeatLegend /></footer>
-        </section>
-      </div>
-      <div className="ws-pair">
-        <Signals orb={orb} darvas={darvas} openStock={openStock} go={go} />
-        <section className="card ws-news">
-          <header className="card-head">
-            <div className="row">
-              <h3>Market news</h3>
-              <span className="live-chip"><span className="live-dot" /> Live</span>
-            </div>
-            <button type="button" className="link-accent" onClick={() => go("news")}>All news →</button>
-          </header>
-          <NewsList news={news} source="all" limit={8} compact />
-        </section>
-      </div>
-      <EquityCurve pfData={port.data} pf={pf} go={go} />
+      <ConfidenceWins openStock={openStock} />
     </div>
   );
 }

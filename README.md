@@ -17,15 +17,13 @@ A private trading terminal for Indian markets, built on Zerodha Kite Connect. It
 | News | Breaking news with the stocks mentioned, smart alerts | Public RSS feeds |
 | Option Chain | Live chain, Greeks, OI build-up, strategy builder | Kite |
 
-**Strategies and trading**: ORB and Darvas Box paper trading on ₹1 lakh each, backtests, the nightly improvement loop, Portfolio & Risk, and the Trade, Orders, Positions and Holdings pages.
+**Strategies and trading**: ORB, Nifty ORB and Nifty Expiry Spread paper trading on ₹1 lakh each, backtests, the nightly improvement loop, Portfolio & Risk, and the Trade, Orders, Positions and Holdings pages.
 
 Real orders are sent only from the Trade page, after you review and confirm them. Strategies and paper features never place orders.
 
 ## Project layout
 
 ```
-darvas_algo.py          Darvas scanner and backtester (run as a child process)
-index_lists/            Sensex members, which BSE does not publish as a file
 kite-login/
   backend/
     main.py             Entry point
@@ -59,7 +57,7 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:5173 and log in with your Kite API key. To avoid typing the secret, put it next to `darvas_algo.py` in a file named `Credentials.txt`:
+Open http://127.0.0.1:5173 and log in with your Kite API key. To avoid typing the secret, put it in `C:\Algo\Credentials.txt`:
 
 ```
 api_key = your_key

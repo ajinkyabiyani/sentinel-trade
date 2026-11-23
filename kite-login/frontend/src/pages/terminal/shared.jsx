@@ -69,6 +69,16 @@ export function squarify(items, box) {
 const SECTOR_HEAD = 16;
 
 // Stocks grouped by sector, sized by market cap (traded value until market caps have loaded), coloured by return.
+// The largest font, in px, at which a symbol fits its box, wrapping onto more lines if it must. 0 when even the smallest can't fit.
+const CHAR_W = 0.62;
+export function fitFont(chars, w, h, max = 13, min = 6.5) {
+  for (let f = max; f >= min; f -= 0.5) {
+    const perLine = Math.floor((w - 2) / (f * CHAR_W));
+    if (perLine >= 1 && Math.ceil(chars / perLine) * f * 1.1 <= h - 2) return f;
+  }
+  return 0;
+}
+
 export function Treemap({ rows, period = "1D", onPick, height = 620, compact }) {
   const ref = useRef(null);
   const [width, setWidth] = useState(0);
@@ -83,7 +93,8 @@ export function Treemap({ rows, period = "1D", onPick, height = 620, compact }) 
     if (!width) return [];
     const groups = {};
     for (const r of rows) {
-      const size = byCap ? r.mcap_cr : r.value_cr;
+      const raw = byCap ? r.mcap_cr : r.value_cr;
+      const size = compact ? raw : Math.sqrt(Math.max(0, raw));     // the full map compresses sizes, so small companies keep a readable box
       if (size > 0) (groups[r.sector || "Other"] ||= []).push({ ...r, size });
     }
     const sectors = Object.entries(groups).map(([name, items]) => ({ name, items, size: items.reduce((a, i) => a + i.size, 0) }));
@@ -98,13 +109,16 @@ export function Treemap({ rows, period = "1D", onPick, height = 620, compact }) 
           <span className="hm-sector" style={{ left: s.x + 3, top: s.y + 1, width: Math.max(0, s.w - 6) }} title={s.name}>{s.name}</span>
           {s.cells.map((c) => {
             const v = periodReturn(c, period);
-            const big = c.w > (compact ? 44 : 38) && c.h > (compact ? 26 : 22);
             const large = c.w > 80 && c.h > 46;
+            const pctSize = large ? 11 : 9;
+            const withPct = c.h > 30 && c.w > 30 && fitFont(c.symbol.length, c.w, c.h - pctSize - 2) > 0;
+            const font = fitFont(c.symbol.length, c.w, withPct ? c.h - pctSize - 2 : c.h, large ? 13 : 11);
+            const big = font > 0;
             return (
               <button type="button" key={c.symbol} className="hm-cell" style={{ left: c.x, top: c.y, width: c.w, height: c.h, background: heatColor(v) }}
                 onClick={() => onPick?.(c.symbol)} title={`${c.name} (${c.symbol})\n${v == null ? "no data" : `${signed(v)}%`} · ₹${num(c.last)}${c.mcap_cr ? ` · market cap ₹${num(c.mcap_cr, 0)} Cr` : ""}`}>
-                {big && <b style={{ fontSize: large ? 13 : 10 }}>{c.symbol}</b>}
-                {big && c.h > 30 && <small style={{ fontSize: large ? 11 : 9 }}>{v == null ? "–" : `${signed(v, large ? 2 : 1)}%`}</small>}
+                {big && <b style={{ fontSize: font }}>{c.symbol}</b>}
+                {big && withPct && <small style={{ fontSize: pctSize }}>{v == null ? "–" : `${signed(v, large ? 2 : 1)}%`}</small>}
               </button>
             );
           })}
@@ -154,7 +168,7 @@ export function SectorBars({ sectors, ticks = {} }) {
   );
 }
 
-const BANDS = [[0, 25, "#d9344a", "Extreme fear"], [25, 45, "#ee8a3c", "Fear"], [45, 55, "#e6b800", "Neutral"], [55, 76, "#4cc38a", "Greed"], [76, 100, "#128a58", "Extreme greed"]];
+const BANDS = [[0, 25, "var(--down)", "Extreme fear"], [25, 45, "color-mix(in srgb, var(--down) 55%, var(--amber))", "Fear"], [45, 55, "var(--amber)", "Neutral"], [55, 76, "color-mix(in srgb, var(--up) 60%, var(--amber))", "Greed"], [76, 100, "var(--up)", "Extreme greed"]];
 
 function arc(cx, cy, r, a0, a1) {
   const p = (a) => [cx + r * Math.cos(Math.PI * (1 - a / 100)), cy - r * Math.sin(Math.PI * (1 - a / 100))];
@@ -188,24 +202,25 @@ export function MoodGauge({ mood }) {
   );
 }
 
-const LINE_COLORS = ["var(--accent)", "#e6a700", "#d9534f", "#3aa76d"];
+const LINE_COLORS = ["var(--accent)", "var(--blue)", "var(--violet)", "var(--teal)"];   // categories, not gains and losses
 
 // Index lines rebased to 100 at the start of the range.
-export function NormalizedChart() {
-  const [range, setRange] = useState("1Y");
+export function NormalizedChart({ compact = false }) {
+  const [range, setRange] = useState(compact ? "3M" : "1Y");
   const q = useLoad(() => api.terminalNormalized(range), [range]);
   const series = q.data?.series || [];
-  const W = 640, H = 240, L = 8, R = 44, T = 10, B = 22;
+  const [W, H] = compact ? [360, 170] : [640, 240];
+  const L = 8, R = compact ? 34 : 44, T = 10, B = 22;
   const all = series.flatMap((s) => s.points.map((p) => p[1]));
   const lo = Math.min(...all, 100), hi = Math.max(...all, 100);
   const dates = series[0]?.points.map((p) => p[0]) || [];
   const X = (i, n) => L + (i / Math.max(1, n - 1)) * (W - L - R);
   const Y = (v) => T + (1 - (v - lo) / Math.max(0.01, hi - lo)) * (H - T - B);
   return (
-    <section className="card tt-card">
+    <section className={`card tt-card${compact ? " nc-compact" : ""}`}>
       <header className="card-head">
         <h3>Index performance</h3>
-        <Segmented size="small" label="Range" value={range} onChange={setRange} options={periodOptions(["1W", "1M", "3M", "6M", "YTD", "1Y"])} />
+        <Segmented size="small" label="Range" value={range} onChange={setRange} options={periodOptions(compact ? ["1M", "3M", "YTD", "1Y"] : ["1W", "1M", "3M", "6M", "YTD", "1Y"])} />
       </header>
       {series.length ? (
         <>

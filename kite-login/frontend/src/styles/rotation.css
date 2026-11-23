@@ -1,0 +1,56 @@
+/* =====================================================================
+   Sector Rotation: phase cards, the rotation map beside the ranked list. One colour per phase:
+   Leading = up, Weakening = accent, Improving = violet, Lagging = down.
+   ===================================================================== */
+.rot-page { gap: 12px; }
+.rot-page .lead { --q: var(--up); } .rot-page .weak { --q: var(--accent); } .rot-page .impr { --q: var(--violet); } .rot-page .lag { --q: var(--down); }
+.rot-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rot-phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.rot-phase-card { text-align: left; padding: 12px 14px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; font: inherit; color: var(--text); cursor: pointer; border-top: 3px solid var(--q); transition: background 0.15s, border-color 0.15s; }
+.rot-phase-card:hover { background: var(--hover); }
+.rot-phase-card.on { background: color-mix(in srgb, var(--q) 9%, var(--panel)); border-color: color-mix(in srgb, var(--q) 45%, transparent); border-top-color: var(--q); }
+.rot-phase-top { display: flex; justify-content: space-between; align-items: baseline; width: 100%; }
+.rot-phase-top b { font-size: 14px; font-weight: 700; color: var(--q); }
+.rot-phase-top em { font-style: normal; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rot-phase-card small { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.rot-phase-names { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+.rot-phase-names i { font-style: normal; padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--q) 11%, transparent); color: var(--text-2); white-space: nowrap; }
+.rot-phase-names i.more { color: var(--muted); background: var(--panel-2); }
+.rot-main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); gap: 12px; align-items: stretch; }
+.rot-card { padding: 14px 16px; display: flex; flex-direction: column; }
+.rot-card .rot-map { flex: 1; }
+.rot-map { width: 100%; height: auto; max-height: 520px; display: block; margin-top: 4px; }
+.rot-q { opacity: 0.07; fill: var(--q); }
+.rot-axis { stroke: var(--border-2); stroke-width: 1; }
+.rot-band { stroke: var(--border-2); stroke-dasharray: 3 4; }
+.rot-tick { fill: var(--faint); font-size: 10.5px; font-family: var(--font-ui); }
+.rot-qlabel { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; font-family: var(--font-ui); fill: var(--q); opacity: 0.85; }
+.rot-pt { cursor: pointer; transition: opacity 0.2s; }
+.rot-pt circle { fill: var(--q); stroke: var(--panel); stroke-width: 1.5; }
+.rot-tail { fill: none; stroke: var(--q); stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.22; transition: opacity 0.2s; }
+.rot-name { fill: var(--text-2); font-size: 10.5px; font-weight: 600; font-family: var(--font-ui); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+.rot-pt.dim { opacity: 0.18; }
+.rot-pt.on .rot-tail { opacity: 1; stroke-width: 2; }
+.rot-pt.on .rot-name { fill: var(--text); font-size: 12px; font-weight: 700; }
+.rot-note { margin: 8px 0 0; }
+.rot-loading { display: flex; align-items: center; gap: 10px; min-height: 260px; justify-content: center; }
+.rot-rank { padding: 14px 16px; display: flex; flex-direction: column; min-width: 0; }
+.rot-cols, .rot-li { display: grid; grid-template-columns: minmax(0, 1fr) 96px 46px 52px 52px; gap: 8px; align-items: center; }
+.rot-cols { padding: 0 8px 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); border-bottom: 1px solid var(--border); }
+.rot-cols span:not(:first-child) { text-align: right; }
+.rot-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; max-height: 560px; }
+.rot-list li + li { border-top: 1px solid var(--border); }
+.rot-li { width: 100%; padding: 7px 8px; border: 0; background: none; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.rot-li > span:not(:first-child) { text-align: right; }
+.rot-list li.on .rot-li, .rot-li:hover { background: var(--hover); }
+.rot-li-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.rot-li-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rot-li-name em { font-style: normal; font-size: 9.5px; font-weight: 800; padding: 0 4px; border-radius: 3px; flex: none; }
+.rot-li-name em.ob { color: var(--down); background: var(--down-soft); }
+.rot-li-name em.os { color: var(--up); background: var(--up-soft); }
+.rot-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--q); flex: none; }
+.rot-li-rsi { display: grid !important; grid-template-columns: 1fr 24px; gap: 6px; align-items: center; }
+.rot-gauge { position: relative; height: 4px; border-radius: 2px; background: linear-gradient(90deg, color-mix(in srgb, var(--down) 35%, var(--panel-2)) 0 30%, var(--panel-2) 30% 70%, color-mix(in srgb, var(--up) 35%, var(--panel-2)) 70%); }
+.rot-gauge span { position: absolute; top: -3px; width: 2px; height: 10px; border-radius: 1px; background: var(--text); transform: translateX(-50%); }
+@media (max-width: 1150px) { .rot-main { grid-template-columns: 1fr; } .rot-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .rot-phases { grid-template-columns: 1fr; } }

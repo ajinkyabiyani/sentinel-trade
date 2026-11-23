@@ -3,6 +3,7 @@ import { api } from "../lib/api.js";
 import { num, time } from "../lib/format.js";
 import { ORDER_TYPES } from "../lib/products.js";
 import { Badge, DataTable, ErrorNote, Modal, ProductBadge, Segmented, SideBadge, Spinner, useLoad } from "../components/ui.jsx";
+import { WithLogo } from "../components/Logo.jsx";
 
 const OPEN = ["OPEN", "TRIGGER PENDING", "AMO REQ RECEIVED", "OPEN PENDING", "VALIDATION PENDING", "PUT ORDER REQ RECEIVED", "MODIFY PENDING", "MODIFIED"];
 const statusTone = (s) => (s === "COMPLETE" ? "buy" : s === "REJECTED" ? "sell" : s === "CANCELLED" ? "" : "amber");
@@ -106,10 +107,10 @@ export default function Orders({ openTicket }) {
   }
 
   const instrument = (o) => (
-    <span className="sym">
+    <WithLogo symbol={o.tradingsymbol}><span className="sym">
       <b>{o.tradingsymbol}</b>
       <small>{o.exchange}</small>
-    </span>
+    </span></WithLogo>
   );
 
   const orderCols = [
@@ -192,9 +193,9 @@ export default function Orders({ openTicket }) {
         <DataTable
           rows={gtts.data || []}
           rowKey={(g) => g.id}
-          empty="No GTTs. Use Protect (GTT) on a holding or a Darvas trade to add an overnight stop and target."
+          empty="No GTTs. Use Protect (GTT) on a holding or position to add an overnight stop and target."
           columns={[
-            { key: "tradingsymbol", label: "Instrument", render: (g) => <span className="sym"><b>{g.tradingsymbol}</b><small>{g.exchange} · #{g.id}</small></span> },
+            { key: "tradingsymbol", label: "Instrument", render: (g) => <WithLogo symbol={g.tradingsymbol}><span className="sym"><b>{g.tradingsymbol}</b><small>{g.exchange} · #{g.id}</small></span></WithLogo> },
             { key: "type", label: "Type", render: (g) => (g.type === "two-leg" ? "Stop + target (OCO)" : "Single trigger") },
             { key: "trigger_values", label: "Triggers", align: "num", render: (g) => (g.trigger_values || []).map((v) => num(v)).join(" / ") },
             { key: "orders", label: "Orders", render: (g) => (g.orders || []).map((o) => `${o.transaction_type} ${o.quantity} @ ${num(o.price)}`).join(" · ") },

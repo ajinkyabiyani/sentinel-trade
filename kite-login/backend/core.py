@@ -19,7 +19,6 @@ IST = timezone(timedelta(hours=5, minutes=30))
 SESSION_FILE = Path(os.environ.get("KITE_SESSION_FILE", Path(__file__).with_name(".kite_session.json")))
 ALGO_DIR = Path(os.environ.get("ALGO_DIR", Path(__file__).resolve().parents[2]))   # C:\Algo
 CREDENTIALS_FILE = ALGO_DIR / "Credentials.txt"
-DARVAS_SCRIPT = ALGO_DIR / "darvas_algo.py"
 REPORTS_DIR = ALGO_DIR / "reports"
 
 PROFILE_FIELDS = ("user_id", "user_name", "user_shortname", "email", "user_type", "broker", "avatar_url",
@@ -125,7 +124,7 @@ def _kite_call(fn, *args, **kwargs):
 
 
 def load_credentials() -> dict[str, str | None]:
-    """api_key / api_secret_key from C:\\Algo\\Credentials.txt (same format darvas_algo.py reads)."""
+    """api_key / api_secret_key from C:\\Algo\\Credentials.txt ."""
     creds: dict[str, str] = {}
     if CREDENTIALS_FILE.exists():
         for line in CREDENTIALS_FILE.read_text(encoding="utf-8-sig").splitlines():

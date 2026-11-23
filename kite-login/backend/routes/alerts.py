@@ -12,14 +12,14 @@ from pydantic import BaseModel, Field
 
 from core import IST, _kite_call, app, kite_client, log, store
 from routes.paper import _close_paper, _paper_book
-from strategies import orb
+from strategies import common
 
 
 # ---------------------------------------------------------------------------
 # Smart alerts: price / day-change alerts checked every 10 s on live quotes, plus system alerts (paper stop and
 # target hits). In-app only: nothing is sent anywhere and nothing is ordered.
 # ---------------------------------------------------------------------------
-ALERTS_FILE = orb.CACHE_DIR / "alerts.json"
+ALERTS_FILE = common.CACHE_DIR / "alerts.json"
 _alerts_lock = threading.Lock()
 ALERT_TEXT = {"above": "crosses above", "below": "crosses below", "chg_above": "day change above", "chg_below": "day change below"}
 
@@ -32,7 +32,7 @@ def _alerts() -> dict:
 
 
 def _save_alerts(d: dict) -> None:
-    orb.CACHE_DIR.mkdir(exist_ok=True)
+    common.CACHE_DIR.mkdir(exist_ok=True)
     tmp = ALERTS_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(d, indent=1), encoding="utf-8")
     tmp.replace(ALERTS_FILE)

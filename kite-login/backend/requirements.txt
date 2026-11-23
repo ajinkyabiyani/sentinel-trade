@@ -3,5 +3,6 @@ uvicorn>=0.29
 watchfiles
 kiteconnect
 requests
+anthropic==2.6.0
 pandas
 numpy

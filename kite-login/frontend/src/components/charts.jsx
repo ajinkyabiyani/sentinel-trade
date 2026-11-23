@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { dateTime, num, shortSector, signed } from "../lib/format.js";
+import { dateTime, num, signed } from "../lib/format.js";
+import { Empty } from "./ui.jsx";
 
 function useWidth(fallback = 800) {
   // callback ref: re-attaches whenever the measured element changes (a loading placeholder, then the chart)
@@ -140,7 +141,7 @@ export function Sparkline({ values, height = 44 }) {
     <svg className={`spark ${up ? "up" : "down"}`} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none" height={height} aria-hidden="true">
       <defs>
         <linearGradient id={`sp${id}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.14" />
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
@@ -150,66 +151,6 @@ export function Sparkline({ values, height = 44 }) {
   );
 }
 
-export const QUADRANT_TONE = { Leading: "up", Weakening: "amber", Lagging: "down", Improving: "accent" };
-
-// Relative rotation graph: x = RS-Ratio, y = RS-Momentum, centred on 100; tails show the last weeks' path.
-export function RotationMap({ sectors, selected, onSelect, tailLen = 3 }) {
-  const [hover, setHover] = useState(null);
-  const S = 520;
-  const P = 34;
-  const all = sectors.flatMap((s) => s.tail.flatMap((t) => [t.rs_ratio - 100, t.rs_momentum - 100]));
-  const ext = Math.max(2.5, ...all.map(Math.abs)) * 1.12;
-  const px = (v) => P + ((v - 100 + ext) / (2 * ext)) * (S - 2 * P);
-  const py = (v) => S - P - ((v - 100 + ext) / (2 * ext)) * (S - 2 * P);
-  const c = S / 2;
-  const focus = hover || selected;
-
-  return (
-    <svg className="rrg" viewBox={`0 0 ${S} ${S}`} role="img" aria-label="Sector rotation map">
-      <rect x={c} y={P} width={c - P} height={c - P} className="q q-leading" />
-      <rect x={c} y={c} width={c - P} height={c - P} className="q q-weakening" />
-      <rect x={P} y={c} width={c - P} height={c - P} className="q q-lagging" />
-      <rect x={P} y={P} width={c - P} height={c - P} className="q q-improving" />
-      <line x1={P} x2={S - P} y1={c} y2={c} className="axis-line" />
-      <line x1={c} x2={c} y1={P} y2={S - P} className="axis-line" />
-      <text x={S - P - 8} y={P + 20} textAnchor="end" className="q-label up">LEADING</text>
-      <text x={S - P - 8} y={S - P - 10} textAnchor="end" className="q-label amber">WEAKENING</text>
-      <text x={P + 8} y={S - P - 10} className="q-label down">LAGGING</text>
-      <text x={P + 8} y={P + 20} className="q-label accent">IMPROVING</text>
-      <text x={S - P} y={c - 8} textAnchor="end" className="axis">RS-Ratio →</text>
-      <text x={c + 8} y={P - 10} className="axis">↑ RS-Momentum</text>
-      {sectors.map((s) => {
-        const tone = QUADRANT_TONE[s.quadrant];
-        const dim = focus && focus !== s.sector;
-        const tail = focus === s.sector ? s.tail : s.tail.slice(-tailLen); // full trail only for the focused group
-        const head = tail[tail.length - 1];
-        const d = tail.map((t, i) => `${i ? "L" : "M"}${px(t.rs_ratio).toFixed(1)},${py(t.rs_momentum).toFixed(1)}`).join("");
-        return (
-          <g
-            key={s.sector}
-            className={`sector ${tone}${dim ? " dim" : ""}${focus === s.sector ? " focus" : ""}`}
-            onMouseEnter={() => setHover(s.sector)}
-            onMouseLeave={() => setHover(null)}
-            onClick={() => onSelect?.(selected === s.sector ? null : s.sector)}
-          >
-            <path d={d} className="tail" />
-            {tail.slice(0, -1).map((t, i) => (
-              <circle key={t.date} cx={px(t.rs_ratio)} cy={py(t.rs_momentum)} r={1.6 + (i / tail.length) * 1.6} className="tail-dot" />
-            ))}
-            <circle cx={px(head.rs_ratio)} cy={py(head.rs_momentum)} r="7" className="head" />
-            <text x={px(head.rs_ratio) + 10} y={py(head.rs_momentum) + 4} className="sector-label">
-              {{ LARGE: "Large cap", MID: "Mid cap", SMALL: "Small cap" }[s.sector] || shortSector(s.sector)}
-            </text>
-            <title>{`${s.sector}: ${s.quadrant} · RS-Ratio ${s.rs_ratio} · RS-Momentum ${s.rs_momentum} · 1M ${s.chg_1m_pct}% · vs Nifty 3M ${s.rel_3m_pct}%`}</title>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// Stock page chart: one cyan line over candles [iso, o, h, l, c, v], OHLC tooltip, last-price pill.
-// overlays: [{ values (one per candle, null allowed), cls, label }]; kind "candle" draws OHLC candles instead of the line.
 export function PriceChart({ candles, intraday, height = 300, prevClose, overlays = [], kind = "line" }) {
   const [ref, w] = useWidth();
   const [hover, setHover] = useState(null);
@@ -321,5 +262,38 @@ export function PriceChart({ candles, intraday, height = 300, prevClose, overlay
         </div>
       )}
     </div>
+  );
+}
+
+// An equity curve: one point per day, with the starting capital as the base line.
+const shortDay = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" });
+
+export function EquityChart({ points, base, height = 220 }) {
+  const w = 1000;
+  if (!points || points.length < 2) return <Empty>The curve needs at least two days of results.</Empty>;
+  const v = points.map((p) => p[1]);
+  const lo = Math.min(base ?? v[0], ...v), hi = Math.max(base ?? v[0], ...v);
+  const pad = (hi - lo) * 0.08 || 1;
+  const y = (x) => 10 + (1 - (x - lo + pad) / (hi - lo + 2 * pad)) * (height - 34);
+  const x = (i) => (i / (points.length - 1)) * (w - 70);
+  const line = v.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join("");
+  const up = v.at(-1) >= (base ?? v[0]);
+  const ticks = [lo, (lo + hi) / 2, hi];
+  const marks = [0, Math.floor(points.length / 3), Math.floor((2 * points.length) / 3), points.length - 1];
+  return (
+    <svg className={`bt-chart ${up ? "up" : "down"}`} viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" role="img" aria-label="Equity curve">
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1="0" x2={w - 70} y1={y(t)} y2={y(t)} className="sc-grid" />
+          <text x={w - 64} y={y(t) + 4} className="axis">{num(t, 0)}</text>
+        </g>
+      ))}
+      {base != null && <line x1="0" x2={w - 70} y1={y(base)} y2={y(base)} className="bt-base" />}
+      <path d={`${line}L${x(v.length - 1)},${height - 24}L0,${height - 24}Z`} className="bt-area" />
+      <path d={line} className="bt-line" />
+      {marks.map((i, k) => (
+        <text key={k} x={x(i)} y={height - 6} className="axis" textAnchor={k === 0 ? "start" : k === 3 ? "end" : "middle"}>{shortDay(points[i][0])}</text>
+      ))}
+    </svg>
   );
 }
